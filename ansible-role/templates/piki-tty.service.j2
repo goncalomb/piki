@@ -1,0 +1,21 @@
+[Unit]
+Description=PiKi TTY
+After=network-online.target
+
+[Service]
+ExecStartPre="{{ piki_dir }}/ttyctl.sh" "{{ piki_tty_device }}" "{{ piki_tty_font }}"
+ExecStopPost="{{ piki_dir }}/ttyctl.sh" /dev/tty1
+ExecStart="{{ piki_dir }}/.venv/bin/python3" "{{ piki_dir }}/piki/piki-tty.py"
+Restart=always
+User=pi
+Group=pi
+StandardInput=tty
+StandardOutput=tty
+StandardError=journal+console
+TTYPath={{ piki_tty_device }}
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,3 @@
+- name: Install PiKi core
+  ansible.builtin.include_tasks:
+    file: install-core.yaml
