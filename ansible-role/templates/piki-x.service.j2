@@ -1,0 +1,16 @@
+[Unit]
+Description={{ item.description }}
+After=network-online.target
+
+[Service]
+{% if 'environment' in item %}
+{% for environment in item.environment %}
+Environment={{ environment }}
+{% endfor %}
+{% endif %}
+ExecStart={{ item.exec }}
+StandardOutput=journal+console
+StandardError=journal+console
+
+[Install]
+WantedBy=multi-user.target
