@@ -1,4 +1,6 @@
 piki_dir: /opt/piki
+piki_disable_getty_tty1: true
+piki_tty_enabled: true
 piki_tty_device: /dev/tty7
 piki_tty_font: Uni1-VGA32x16
 piki_user_packages: ""

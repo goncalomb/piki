@@ -30,11 +30,13 @@
         name: getty@tty1
         enabled: false
         state: stopped
+      when: piki_disable_getty_tty1
 
     - name: Create piki-tty.service
       ansible.builtin.template:
         src: templates/piki-tty.service.j2
         dest: /etc/systemd/system/piki-tty.service
+      when: piki_tty_enabled
 
     - name: Enable piki-tty.service
       ansible.builtin.systemd_service:
@@ -42,3 +44,4 @@
         daemon_reload: true
         enabled: true
         state: restarted
+      when: piki_tty_enabled
