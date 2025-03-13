@@ -1,5 +1,6 @@
 piki_dir: /opt/piki
 piki_tty_device: /dev/tty7
 piki_tty_font: Uni1-VGA32x16
+piki_user_packages: ""
 piki_user_services_prefix: x-
 piki_user_services: []

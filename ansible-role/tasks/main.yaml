@@ -2,6 +2,11 @@
   ansible.builtin.include_tasks:
     file: install-core.yaml
 
+- name: Install PiKi user packages
+  ansible.builtin.include_tasks:
+    file: install-user-packages.yaml
+  when: piki_user_packages
+
 - name: Install PiKi user services
   ansible.builtin.include_tasks:
     file: install-user-services.yaml
