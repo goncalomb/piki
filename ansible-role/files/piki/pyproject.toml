@@ -1,0 +1,10 @@
+[project]
+name = "piki"
+version = "0.0.0"
+dependencies = [
+    "urwid==2.6.16",
+]
+
+[project.scripts]
+piki = "piki.cli:main"
+piki-tty = "piki.tty:main"

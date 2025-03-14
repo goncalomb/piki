@@ -3,9 +3,9 @@ Description=PiKi TTY
 After=network-online.target
 
 [Service]
-ExecStartPre="{{ piki_dir }}/ttyctl.sh" "{{ piki_tty_device }}" "{{ piki_tty_font }}"
-ExecStopPost="{{ piki_dir }}/ttyctl.sh" /dev/tty1
-ExecStart="{{ piki_dir }}/.venv/bin/python3" "{{ piki_dir }}/piki/piki-tty.py"
+ExecStartPre="{{ piki_dir }}/bin/piki-ttyctl" "{{ piki_tty_device }}" "{{ piki_tty_font }}"
+ExecStopPost="{{ piki_dir }}/bin/piki-ttyctl" /dev/tty1
+ExecStart={{ piki_tty_exec }}
 Restart=always
 User=pi
 Group=pi

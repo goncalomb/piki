@@ -17,11 +17,25 @@
     src: files/
     dest: "{{ piki_dir }}/"
 
-- name: Install PiKi requirements.txt
+- name: Setup PiKi virtualenv and dependencies
   ansible.builtin.pip:
     virtualenv: "{{ piki_dir }}/.venv"
     virtualenv_command: python3 -m venv
-    requirements: "{{ piki_dir }}/piki/requirements.txt"
+    name: "{{ piki_dir }}/piki"
+    editable: true
+
+- name: Create PiKi virtualenv bin symlinks
+  ansible.builtin.file:
+    src: "../.venv/bin/{{ item }}"
+    path: "{{ piki_dir }}/bin/{{ item }}"
+    state: link
+  loop: [piki, piki-tty]
+
+- name: Add PiKi bin to user path
+  ansible.builtin.lineinfile:
+    path: /home/pi/.profile
+    line: PATH="{{ piki_dir }}/bin:$PATH"
+  when: piki_add_bin_to_user_path
 
 - become: true
   block:

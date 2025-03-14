@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+import sys
 
 # https://urwid.org/index.html
 # https://urwid.org/tutorial/index.html
@@ -15,5 +15,7 @@ txt = urwid.Text(("banner", " PiKi: Raspberry [Pi Ki]osk "), align="center")
 map1 = urwid.AttrMap(txt, "streak")
 fill = urwid.Filler(map1)
 map2 = urwid.AttrMap(fill, "bg")
-loop = urwid.MainLoop(map2, palette)
-loop.run()
+
+def main():
+    loop = urwid.MainLoop(map2, palette)
+    loop.run()
