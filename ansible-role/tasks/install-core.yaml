@@ -17,6 +17,12 @@
     src: files/
     dest: "{{ piki_dir }}/"
 
+- name: Create PiKi directories
+  ansible.builtin.file:
+    path: "{{ piki_dir }}/{{ item }}"
+    state: directory
+  loop: [plugins]
+
 - name: Setup PiKi virtualenv and dependencies
   ansible.builtin.pip:
     virtualenv: "{{ piki_dir }}/.venv"

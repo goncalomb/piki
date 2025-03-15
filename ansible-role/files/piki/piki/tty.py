@@ -1,10 +1,11 @@
+import logging
 import subprocess
 import time
 import traceback
 
 import urwid
 
-from . import util
+from . import internal, util
 
 
 def on_button_press(button, user_data):
@@ -46,10 +47,12 @@ class MainFrame(urwid.WidgetWrap):
 
 
 def main():
+    logging.basicConfig(level=logging.INFO)
+    ctl = internal.core.Controller()
+    ctl.load()
     overlay = urwid.Overlay(
         MainFrame(),
         urwid.SolidFill("\N{MEDIUM SHADE}"),
         urwid.CENTER, (urwid.RELATIVE, 80), urwid.MIDDLE, (urwid.RELATIVE, 80),
     )
-    loop = urwid.MainLoop(overlay)
-    loop.run()
+    ctl.main_loop(overlay)

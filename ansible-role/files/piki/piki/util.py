@@ -1,5 +1,17 @@
+import os
 import subprocess
 import sys
+
+
+def find_venv_dir():
+    if 'VIRTUAL_ENV' in os.environ:
+        return os.environ['VIRTUAL_ENV']
+    if sys.executable:
+        parts = sys.executable.split(os.path.sep)
+        for i in range(0, len(parts) - 1):
+            if parts[i] == '.venv' and parts[i + 1] == 'bin':
+                return os.sep.join(parts[:i + 1])
+    return ''
 
 
 def process_check_call(cmd, sudo=False):
