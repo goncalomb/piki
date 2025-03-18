@@ -1,6 +1,14 @@
+import importlib.metadata
 import os
 import subprocess
 import sys
+
+
+def find_piki_version(unknown=None):
+    try:
+        return importlib.metadata.version('piki')
+    except ModuleNotFoundError:
+        return unknown
 
 
 def find_venv_dir():
