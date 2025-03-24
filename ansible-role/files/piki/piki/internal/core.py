@@ -1,7 +1,9 @@
+import asyncio
 import logging
 import os
 import subprocess
 import time
+import typing
 from collections.abc import Callable
 
 import urwid
@@ -89,10 +91,7 @@ class Controller():
     def __init__(self):
         self._plugins = []
         self._ui = UIController()
-        logger.info("Starting PiKi Core")
-        logger.info("piki_venv_dir = %s" % self.piki_venv_dir)
-        logger.info("piki_dir = %s" % self.piki_dir)
-        logger.info("piki_plugins_dir = %s" % self.piki_plugins_dir)
+        self._main_loop = None
 
     def _cb_plugin_init(self, plugin):
         plugin.ctl = PluginControl(self)
@@ -116,6 +115,13 @@ class Controller():
         for p in self._plugins:
             p.on_ui_create()
 
+    def _unload_plugins(self):
+        for p in self._plugins:
+            p.on_ui_destroy()
+
+        for p in self._plugins:
+            p.on_unload()
+
     def ui_recreate(self):
         for p in self._plugins:
             p.on_ui_destroy()
@@ -125,16 +131,54 @@ class Controller():
         for p in self._plugins:
             p.on_ui_create()
 
-    def main_loop(self):
-        self._load_plugins()
-
-        widget, palette = self._ui.get()
-        loop = urwid.MainLoop(widget, palette)
-
+    def _main(self):
         for p in self._plugins:
             p.on_main()
 
-        loop.run()
+    def run(self):
+        logger.info("Starting PiKi v%s" % self.piki_version)
+        logger.info("piki_venv_dir = %s" % self.piki_venv_dir)
+        logger.info("piki_dir = %s" % self.piki_dir)
+        logger.info("piki_plugins_dir = %s" % self.piki_plugins_dir)
+
+        self._load_plugins()
+
+        widget, palette = self._ui.get()
+        event_loop = urwid.AsyncioEventLoop()
+        event_loop.alarm(0, self._main)
+
+        self._main_loop = urwid.MainLoop(
+            widget, palette,
+            event_loop=event_loop,
+        )
+
+        try:
+            self._main_loop.run()
+        except KeyboardInterrupt:
+            pass
+
+        logger.info("Stopping")
+
+        self._unload_plugins()
+
+        # because urwid uses run_forever internally we do some extra
+        # cleanup here, similarly to what the default runner does
+        # https://github.com/python/cpython/blob/main/Lib/asyncio/runners.py
+        # https://docs.python.org/3/library/asyncio-eventloop.html#asyncio.loop.close
+        loop = event_loop._loop
+        try:
+            tasks = asyncio.tasks.all_tasks(loop)
+            if tasks:
+                for task in tasks:
+                    task.cancel()
+                loop.run_until_complete(asyncio.gather(*tasks, return_exceptions=True))
+            loop.run_until_complete(loop.shutdown_asyncgens())
+            loop.run_until_complete(loop.shutdown_default_executor())
+        finally:
+            asyncio.set_event_loop(None)
+            loop.close()
+
+        logger.info("End")
 
 
 class PluginControl():
@@ -142,21 +186,45 @@ class PluginControl():
 
     def __init__(self, ctl):
         self._ctl = ctl
+        self._draw_screen_handle = None
         self.piki_dir = ctl.piki_dir
 
+    def loop_asyncio(self) -> asyncio.AbstractEventLoop:
+        # XXX: we are accessing urwid internals here (_loop)
+        return self._ctl._main_loop.event_loop._loop
+
+    def loop_call_later(self, delay: float, callback: Callable[[], typing.Any]) -> asyncio.TimerHandle:
+        return self._ctl._main_loop.event_loop.alarm(delay, callback)
+
+    def loop_stop(self):
+        def cb():
+            raise urwid.ExitMainLoop()
+        self.loop_call_later(0, cb)
+        # raise urwid.ExitMainLoop()
+
+    def ui_draw_screen(self):
+        if self._ctl._main_loop and not self._draw_screen_handle:
+            def cb():
+                self._draw_screen_handle = None
+            self._draw_screen_handle = self.loop_call_later(0, cb)
+
     def ui_recreate(self):
-        self._ctl.ui_recreate()
+        self.loop_call_later(0, self._ctl.ui_recreate)
 
     def ui_menu_add(self, key: str, title: str, buttons: list[tuple[str, str | Callable[[], None]]] = []):
+        self.ui_draw_screen()
         self._ctl._ui._w_menu.add_menu(key, title, buttons)
 
     def ui_menu_remove(self, key: str):
+        self.ui_draw_screen()
         self._ctl._ui._w_menu.remove_menu(key)
 
     def ui_menu_buttons_add(self, key: str, buttons: list[tuple[str, str | Callable[[], None]]], top=False):
+        self.ui_draw_screen()
         self._ctl._ui._w_menu.add_menu_buttons(key, buttons)
 
     def ui_menu_root_buttons_add(self, buttons: list[tuple[str, str | Callable[[], None]]], top=True):
+        self.ui_draw_screen()
         self._ctl._ui._w_menu.add_root_menu_buttons(buttons)
 
 
@@ -164,6 +232,7 @@ class Plugin(plugin.Plugin):
     ctl: PluginControl
 
     def on_load(self): pass
+    def on_unload(self): pass
     def on_main(self): pass
     def on_ui_create(self): pass
     def on_ui_destroy(self): pass
