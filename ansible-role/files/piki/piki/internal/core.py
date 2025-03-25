@@ -40,11 +40,11 @@ class UIController():
 
     def recreate(self):
         self._w_menu = tui.ConfigurableMenu('piki.menu')
-        self._w_menu.add_root_menu_buttons([
+        self._w_menu.setup_root_menu(buttons=[
             ('Configuration', 'piki.menu.config'),
             ('System', 'piki.menu.system'),
         ])
-        self._w_menu.add_menu('piki.menu.system', 'System', [
+        self._w_menu.setup_menu('piki.menu.system', title='System', buttons=[
             ('Show system log (5 sec.)', lambda: _system_action('show_log')),
             ('Reset TTY', lambda: _system_action('reset_tty')),
             ('Restart', lambda: _system_action('reboot')),
@@ -211,21 +211,32 @@ class PluginControl():
     def ui_recreate(self):
         self.loop_call_later(0, self._ctl.ui_recreate)
 
-    def ui_menu_add(self, key: str, title: str, buttons: list[tuple[str, str | Callable[[], None]]] = []):
+    def ui_setup_menu(
+        self, key: str, *,
+        title: str | None = None,
+        buttons: list[tuple[str, str | Callable[[], None]]] = [],
+        append=True, replace=True,
+    ):
         self.ui_draw_screen()
-        self._ctl._ui._w_menu.add_menu(key, title, buttons)
+        self._ctl._ui._w_menu.setup_menu(
+            key,
+            title=title, buttons=buttons, append=append, replace=replace,
+        )
 
-    def ui_menu_remove(self, key: str):
+    def ui_setup_root_menu(
+        self, *,
+        title: str | None = None,
+        buttons: list[tuple[str, str | Callable[[], None]]] = [],
+        append=False, replace=False,
+    ):
+        self.ui_draw_screen()
+        self._ctl._ui._w_menu.setup_root_menu(
+            title=title, buttons=buttons, append=append, replace=replace,
+        )
+
+    def ui_remove_menu(self, key: str):
         self.ui_draw_screen()
         self._ctl._ui._w_menu.remove_menu(key)
-
-    def ui_menu_buttons_add(self, key: str, buttons: list[tuple[str, str | Callable[[], None]]], top=False):
-        self.ui_draw_screen()
-        self._ctl._ui._w_menu.add_menu_buttons(key, buttons)
-
-    def ui_menu_root_buttons_add(self, buttons: list[tuple[str, str | Callable[[], None]]], top=True):
-        self.ui_draw_screen()
-        self._ctl._ui._w_menu.add_root_menu_buttons(buttons)
 
 
 class Plugin(plugin.Plugin):
