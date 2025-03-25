@@ -3,8 +3,6 @@ import logging
 import os
 import types
 
-logger = logging.getLogger(__name__)
-
 
 def _exec_module(location):
     name = os.path.basename(location)
@@ -19,7 +17,7 @@ def _exec_module(location):
     return None
 
 
-def _load_plugin(path, plugin_base_class, cb_plugin_init):
+def load_plugin(path, plugin_base_class, cb_plugin_init):
     if not issubclass(plugin_base_class, Plugin):
         raise Exception("Plugin base must be subclass of %s" % Plugin)
 
@@ -64,7 +62,7 @@ def _load_plugin(path, plugin_base_class, cb_plugin_init):
     return plugin
 
 
-def _load_plugins(path, plugin_base_class, cb_plugin_init):
+def load_plugins(path, plugin_base_class, cb_plugin_init):
     if not issubclass(plugin_base_class, Plugin):
         raise Exception("Plugin base must be subclass of %s" % Plugin)
 
@@ -72,17 +70,7 @@ def _load_plugins(path, plugin_base_class, cb_plugin_init):
     for f in os.scandir(path):
         if f.name[0] == '_':
             continue
-        logger.info("Loading plugin from '%s'" % f.path)
-        try:
-            plugin = _load_plugin(
-                f.path,
-                plugin_base_class,
-                cb_plugin_init,
-            )
-            logger.info("Plugin '%s' loaded" % plugin.name)
-            res.append(plugin)
-        except Exception as e:
-            logger.exception("Exception while loading plugin", exc_info=e)
+        res.append(load_plugin(f.path, plugin_base_class, cb_plugin_init))
     return res
 
 

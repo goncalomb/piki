@@ -97,12 +97,15 @@ class Controller():
         plugin.ctl = PluginControl(self)
 
     def _load_plugins(self):
+        logger.info("Loading plugins")
         if os.path.isdir(self.piki_plugins_dir):
-            self._plugins = plugin._load_plugins(
+            self._plugins = plugin.load_plugins(
                 self.piki_plugins_dir,
                 Plugin,
                 self._cb_plugin_init,
             )
+        else:
+            logger.info("Plugins directory does't exist")
 
         for p in self._plugins:
             p.on_load()
@@ -116,6 +119,8 @@ class Controller():
             p.on_ui_create()
 
     def _unload_plugins(self):
+        logger.info("Unloading plugins")
+
         for p in self._plugins:
             p.on_ui_destroy()
 
@@ -156,8 +161,8 @@ class Controller():
             self._main_loop.run()
         except KeyboardInterrupt:
             pass
-
-        logger.info("Stopping")
+        except Exception as e:
+            logger.exception("Uncaught exception", exc_info=e)
 
         self._unload_plugins()
 
@@ -169,9 +174,13 @@ class Controller():
         try:
             tasks = asyncio.tasks.all_tasks(loop)
             if tasks:
+                logger.info("Cancelling %s pending task(s)" % len(tasks))
                 for task in tasks:
                     task.cancel()
-                loop.run_until_complete(asyncio.gather(*tasks, return_exceptions=True))
+                loop.run_until_complete(asyncio.gather(
+                    *tasks, return_exceptions=True,
+                ))
+            logger.info("Stopping")
             loop.run_until_complete(loop.shutdown_asyncgens())
             loop.run_until_complete(loop.shutdown_default_executor())
         finally:
