@@ -1,8 +1,8 @@
 import logging
 
-from . import internal
+from . import core
 
 
 def main():
     logging.basicConfig(level=logging.INFO)
-    internal.core.Controller().run()
+    core.Controller().run()

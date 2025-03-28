@@ -9,7 +9,8 @@ from collections.abc import Callable
 import urwid
 
 from .. import util
-from . import plugin, tui
+from ..utils import plugin
+from ..utils.pkg import urwid as tui
 
 logger = logging.getLogger(__name__)
 

@@ -14,8 +14,31 @@
 
 - name: Copy PiKi files
   ansible.posix.synchronize:
-    src: files/
+    src: "{{ item }}"
     dest: "{{ piki_dir }}/"
+  loop:
+    # copy bin files
+    - "{{ [role_path, 'files', 'bin'] | path_join }}"
+    # copy piki files
+    # XXX: this is kind of a hack to install piki from the parent directory
+    #      IF the role is installed on ANSIBLE_HOME (e.g. galaxy install)
+    #      the root files are at {{ role_path + '/' + role_name }}, a
+    #      sub-directory with the same name as the role name, this is an
+    #      artifact of how roles that are not on the root directory are
+    #      installed (may not be intended, but works for now), see:
+    #      https://github.com/ansible/ansible/blob/devel/lib/ansible/galaxy/role.py
+    #      IF the role is included locally (e.g. relative include_role), the
+    #      root files are in the expected location {{ role_path + '/..' }}
+    #      USING SYMLINKS DOES NOT WORK, the code that installs the role
+    #      forbids symlinks that link outside the role (maybe this could be
+    #      improved, i.e. only block symlinks outside the archive, but there
+    #      is the issue of where to put the root files)
+    #      I ADMIT that using a role on a sub-directory is not very standard,
+    #      but I think it makes for a nicer directory structure, instead of
+    #      putting all the application code in files/
+    #      ULTIMATELY maybe the role could just be a different repo, but a
+    #      monorepo for this project is nicer :) BYE FOR NOW
+    - "{{ role_path.startswith([lookup('config', 'ANSIBLE_HOME'), ''] | path_join) | ternary([role_path, role_name, 'piki'] | path_join, [role_path, '..', 'piki', ''] | path_join | normpath) }}"
 
 - name: Create PiKi directories
   ansible.builtin.file:
