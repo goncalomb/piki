@@ -1,8 +1,6 @@
 import asyncio
 import logging
 import os
-import subprocess
-import time
 import typing
 from collections.abc import Callable
 
@@ -15,24 +13,6 @@ from ..utils.pkg import urwid as tui
 logger = logging.getLogger(__name__)
 
 
-def _system_action(action):
-    try:
-        if action == 'show_log':
-            util.process_check_call(['chvt', '1'])
-            time.sleep(5)
-            util.process_check_call(['chvt', '7'])
-        elif action == 'reset_tty':
-            util.process_check_call(
-                ['systemctl', 'restart', 'piki-tty'], sudo=True)
-        elif action == 'reboot':
-            util.process_check_call(['reboot'], sudo=True)
-        elif action == 'power_off':
-            util.process_check_call(['poweroff'], sudo=True)
-    except (FileNotFoundError, subprocess.CalledProcessError) as e:
-        logger.exception(
-            "Exception while performing system action", exc_info=e)
-
-
 class UIController():
     def __init__(self):
         self._w_menu = None
@@ -41,16 +21,6 @@ class UIController():
 
     def recreate(self):
         self._w_menu = tui.ConfigurableMenu('piki.menu')
-        self._w_menu.setup_root_menu(buttons=[
-            ('Configuration', 'piki.menu.config'),
-            ('System', 'piki.menu.system'),
-        ])
-        self._w_menu.setup_menu('piki.menu.system', title='System', buttons=[
-            ('Show system log (5 sec.)', lambda: _system_action('show_log')),
-            ('Reset TTY', lambda: _system_action('reset_tty')),
-            ('Restart', lambda: _system_action('reboot')),
-            ('Power off', lambda: _system_action('power_off')),
-        ])
 
         w_header = urwid.Filler(urwid.Pile([
             urwid.Text(Controller.piki_header_message, 'center'),
@@ -82,6 +52,9 @@ class Controller():
     piki_venv_dir = util.find_venv_dir()
     piki_dir = os.path.dirname(piki_venv_dir) if piki_venv_dir else os.getcwd()
     piki_plugins_dir = os.path.join(piki_dir, 'plugins')
+    piki_plugins_internal_dir = os.path.join(
+        os.path.dirname(__file__), 'plugins',
+    )
     piki_version = util.find_piki_version('(unknown)')
     piki_source_url = "https://github.com/goncalomb/piki"
     piki_header_message = "PiKi: Raspberry [Pi Ki]osk"
@@ -94,19 +67,30 @@ class Controller():
         self._ui = UIController()
         self._main_loop = None
 
-    def _cb_plugin_init(self, plugin):
-        plugin.ctl = PluginControl(self)
+    def _cb_plugin_init(self, p):
+        p.ctl = PluginControl(self)
+
+    def _cb_plugin_internal_init(self, p):
+        self._cb_plugin_init(p)
+        p.internal = True
+        p.name = 'internal:' + p.name
 
     def _load_plugins(self):
         logger.info("Loading plugins")
+
+        self._plugins = plugin.load_plugins(
+            self.piki_plugins_internal_dir,
+            Plugin,
+            self._cb_plugin_internal_init,
+        )
         if os.path.isdir(self.piki_plugins_dir):
-            self._plugins = plugin.load_plugins(
+            self._plugins += plugin.load_plugins(
                 self.piki_plugins_dir,
                 Plugin,
                 self._cb_plugin_init,
             )
         else:
-            logger.info("Plugins directory does't exist")
+            logger.warning("Plugins directory does't exist")
 
         for p in self._plugins:
             p.on_load()
@@ -250,6 +234,7 @@ class PluginControl():
 
 
 class Plugin(plugin.Plugin):
+    internal = False
     ctl: PluginControl
 
     def on_load(self): pass
