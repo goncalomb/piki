@@ -6,8 +6,7 @@ from collections.abc import Callable
 
 import urwid
 
-from .. import util
-from ..utils import plugin
+from ..utils import pkg_find_version, plugin, venv_find_dir
 from ..utils.pkg import urwid as tui
 
 logger = logging.getLogger(__name__)
@@ -49,13 +48,13 @@ class UIController():
 
 
 class Controller():
-    piki_venv_dir = util.find_venv_dir()
+    piki_venv_dir = venv_find_dir()
     piki_dir = os.path.dirname(piki_venv_dir) if piki_venv_dir else os.getcwd()
     piki_plugins_dir = os.path.join(piki_dir, 'plugins')
     piki_plugins_internal_dir = os.path.join(
         os.path.dirname(__file__), 'plugins',
     )
-    piki_version = util.find_piki_version('(unknown)')
+    piki_version = pkg_find_version('piki', '(unknown)')
     piki_source_url = "https://github.com/goncalomb/piki"
     piki_header_message = "PiKi: Raspberry [Pi Ki]osk"
     piki_footer_message = "piki v%s \N{BULLET} %s" % (
