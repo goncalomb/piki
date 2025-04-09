@@ -9,4 +9,5 @@ dependencies = [
 
 [project.scripts]
 piki = "piki.cli:main"
+piki-rc = "piki.rc:main"
 piki-tty = "piki.tty:main"

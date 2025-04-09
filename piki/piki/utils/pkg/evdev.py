@@ -13,6 +13,8 @@ class EventDeviceIO(InputDevice):
     def __init__(self, dev):
         super().__init__(dev)
         self._read_future = None
+        # extra: monotonic clock
+        _input.event_device_ioctl_set_clock_id(self.fd, 'monotonic')
 
     # fixed: not checking for invalid future (e.g. cancelled)
     def _set_result(self, future, cb):
