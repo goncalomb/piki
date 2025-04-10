@@ -2,12 +2,12 @@
 name = "piki"
 version = "0.0.0"
 dependencies = [
+    "click==8.1.8",
     "ioctl-opt==1.3",
     "evdev==1.9.1",
     "urwid==2.6.16",
 ]
 
 [project.scripts]
-piki = "piki.cli:main"
-piki-rc = "piki.rc:main"
 piki-tty = "piki.tty:main"
+piki-utils = "piki.utils.__main__:main"

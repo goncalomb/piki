@@ -58,7 +58,7 @@
     src: "../.venv/bin/{{ item }}"
     path: "{{ piki_dir }}/bin/{{ item }}"
     state: link
-  loop: [piki, piki-tty]
+  loop: [piki-tty, piki-utils]
 
 - name: Add PiKi bin to user path
   ansible.builtin.lineinfile:
