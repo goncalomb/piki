@@ -1,0 +1,15 @@
+- become: true
+  block:
+    - name: Configure dtoverlay=gpio-ir
+      ansible.builtin.lineinfile:
+        path: /boot/firmware/config.txt
+        regexp: ^dtoverlay=gpio-ir,gpio_pin={{ item.gpio_pin }}[,|$]
+        line: "dtoverlay=gpio-ir,gpio_pin={{ item.gpio_pin }}{{ ',gpio_pull=' ~ item.gpio_pull if 'gpio_pull' in item else '' }},rc-map-name=rc-empty # piki"
+      loop: "{{ piki_rpi_dto_gpio_ir }}"
+
+    - name: Configure dtoverlay=gpio-key
+      ansible.builtin.lineinfile:
+        path: /boot/firmware/config.txt
+        regexp: ^dtoverlay=gpio-key,gpio={{ item.gpio_pin }}[,|$]
+        line: "dtoverlay=gpio-key,gpio={{ item.gpio_pin }}{{ ',gpio_pull=' ~ item.gpio_pull if 'gpio_pull' in item else '' }}{{ ',active_low=' ~ item.active_low if 'active_low' in item else '' }}{{ ',keycode=' ~ item.keycode if 'keycode' in item else '' }}{{ ',label=' ~ item.label if 'label' in item else '' }} # piki"
+      loop: "{{ piki_rpi_dto_gpio_key }}"

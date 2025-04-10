@@ -2,6 +2,10 @@
   ansible.builtin.include_tasks:
     file: install-core.yaml
 
+- name: Install RPi configuration
+  ansible.builtin.include_tasks:
+    file: install-rpi.yaml
+
 - name: Install PiKi user packages
   ansible.builtin.include_tasks:
     file: install-user-packages.yaml
