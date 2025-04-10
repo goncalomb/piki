@@ -1,13 +1,13 @@
 import logging
 
-from . import core
+from . import Controller
 
-__doc__ = 'PiKi core TTY program (to be run as a service).'
+__doc__ = 'PiKi core program (to be run as a service).'
 
 
 def main():
     logging.basicConfig(level=logging.INFO)
-    core.Controller().run()
+    Controller().run()
 
 
 if __name__ == '__main__':

@@ -9,5 +9,5 @@ dependencies = [
 ]
 
 [project.scripts]
-piki-tty = "piki.tty:main"
+piki-core = "piki.core.__main__:main"
 piki-utils = "piki.utils.__main__:main"
