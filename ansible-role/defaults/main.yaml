@@ -13,3 +13,4 @@ piki_rpi_dto_gpio_key: []
 piki_user_packages: ""
 piki_user_services_prefix: x-
 piki_user_services: []
+piki_user_plugins_copy: []
