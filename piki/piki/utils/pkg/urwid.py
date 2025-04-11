@@ -1,4 +1,3 @@
-from collections.abc import Callable
 import typing
 
 import urwid
@@ -48,7 +47,7 @@ class ConfigurableMenu(urwid.WidgetPlaceholder):
         self.attr_disabled = root_key + '.' + self.attr_disabled
         self._menus = {}
         self._stack = [root_key]
-        self.setup_menu(root_key, title=root_title)
+        self.menu_setup(root_key, title=root_title)
 
     def _menu_apply(self):
         crumbs = '/'.join([self._menus[i][1] for i in self._stack])
@@ -84,10 +83,10 @@ class ConfigurableMenu(urwid.WidgetPlaceholder):
             return None
         return super().keypress(size, key)
 
-    def setup_menu(
+    def menu_setup(
         self, key: str, *,
         title: str | None = None,
-        buttons: list[tuple[str, str | Callable[[], None]]] = [],
+        buttons: list[tuple[str, str | typing.Callable[[], None]]] = [],
         append=True, replace=True,
     ):
         if not replace and key in self._menus:
@@ -112,18 +111,18 @@ class ConfigurableMenu(urwid.WidgetPlaceholder):
         if key in self._stack:
             self._menu_apply()
 
-    def setup_root_menu(
+    def menu_setup_root(
         self, *,
         title: str | None = None,
-        buttons: list[tuple[str, str | Callable[[], None]]] = [],
+        buttons: list[tuple[str, str | typing.Callable[[], None]]] = [],
         append=False, replace=False,
     ):
-        self.setup_menu(
+        self.menu_setup(
             self._stack[0],
             title=title, buttons=buttons, append=append, replace=replace,
         )
 
-    def remove_menu(self, key: str):
+    def menu_remove(self, key: str):
         if key != self._stack[0] and key in self._menus:
             del self._menus[key]
             if key in self._stack:

@@ -1,73 +1,72 @@
 import asyncio
 import logging
 import os
-import typing
-from collections.abc import Callable
 
 import urwid
 
-from ..utils import pkg_find_version, plugin, venv_find_dir
+from .. import piki_version
+from ..plugin import Plugin, PluginControl, UIInternals
+from ..utils import venv_find_dir
 from ..utils.pkg import urwid as tui
+from ..utils.plugin import load_plugins
 
 logger = logging.getLogger(__name__)
 
 
-class UIController():
+class UILoopController():
+    _default_palette = [
+        ('piki.menu.focused', 'standout', ''),
+        ('piki.menu.disabled', 'dark gray', ''),
+    ]
+
     def __init__(self):
-        self._w_menu = None
-        self._w_wrap = urwid.WidgetPlaceholder(None)
-        self.recreate()
+        self._main_loop = None
+        self._event_loop = None
+        self._ui_reset()
 
-    def recreate(self):
+    @property
+    def asyncio_loop(self):
+        # XXX: we are accessing urwid internals here (_loop)
+        return self._event_loop._loop
+
+    @property
+    def internals(self):
+        return UIInternals(self._main_loop, self._w_root, self._w_frame)
+
+    def _ui_reset(self):
         self._w_menu = tui.ConfigurableMenu('piki.menu')
+        self._w_frame = urwid.Frame(self._w_menu)
+        self._w_root = urwid.WidgetPlaceholder(self._w_frame)
+        if (self._main_loop):
+            self._main_loop.widget = self._w_root
+            self._main_loop.screen.register_palette(self._default_palette)
 
-        w_header = urwid.Filler(urwid.Pile([
-            urwid.Text(Controller.piki_header_message, 'center'),
-        ]), top=1, bottom=1)
+    def _run(self, main):
+        self._event_loop = urwid.AsyncioEventLoop()
+        self._event_loop.alarm(0, main)
 
-        w_body = urwid.Padding(self._w_menu, 'center', ('relative', 40))
-
-        w_footer = urwid.Filler(urwid.Pile([
-            urwid.Text(Controller.piki_footer_message, 'center'),
-        ]), top=1, bottom=1)
-
-        self._w_wrap.original_widget = urwid.Frame(w_body, w_header, w_footer)
-
-    def get(self):
-        w_overlay = urwid.Overlay(
-            self._w_wrap,
-            urwid.SolidFill("\N{MEDIUM SHADE}"),
-            'center', ('relative', 80),
-            'middle', ('relative', 80),
+        self._main_loop = urwid.MainLoop(
+            self._w_root, self._default_palette,
+            event_loop=self._event_loop,
         )
-        palette = [
-            ('piki.menu.focused', 'standout', ''),
-            ('piki.menu.disabled', 'dark gray', ''),
-        ]
-        return w_overlay, palette
+
+        self._main_loop.run()
 
 
-class Controller():
+class CoreController():
     piki_venv_dir = venv_find_dir()
     piki_dir = os.path.dirname(piki_venv_dir) if piki_venv_dir else os.getcwd()
     piki_plugins_dir = os.path.join(piki_dir, 'plugins')
     piki_plugins_internal_dir = os.path.join(
         os.path.dirname(__file__), 'plugins',
     )
-    piki_version = pkg_find_version('piki', '(unknown)')
-    piki_source_url = "https://github.com/goncalomb/piki"
-    piki_header_message = "PiKi: Raspberry [Pi Ki]osk"
-    piki_footer_message = "piki v%s \N{BULLET} %s" % (
-        piki_version, piki_source_url,
-    )
 
     def __init__(self):
-        self._plugins = []
-        self._ui = UIController()
-        self._main_loop = None
+        self._plugins = []  # TODO: type hinting on 'utils.plugin'
+        self._loop_ctl = UILoopController()
 
     def _cb_plugin_init(self, p):
-        p.ctl = PluginControl(self)
+        p.ctl = PluginControlImpl(self)
 
     def _cb_plugin_internal_init(self, p):
         self._cb_plugin_init(p)
@@ -77,13 +76,13 @@ class Controller():
     def _load_plugins(self):
         logger.info("Loading plugins")
 
-        self._plugins = plugin.load_plugins(
+        self._plugins = load_plugins(
             self.piki_plugins_internal_dir,
             Plugin,
             self._cb_plugin_internal_init,
         )
         if os.path.isdir(self.piki_plugins_dir):
-            self._plugins += plugin.load_plugins(
+            self._plugins += load_plugins(
                 self.piki_plugins_dir,
                 Plugin,
                 self._cb_plugin_init,
@@ -111,11 +110,11 @@ class Controller():
         for p in self._plugins:
             p.on_unload()
 
-    def ui_recreate(self):
+    def _ui_reset(self):
         for p in self._plugins:
             p.on_ui_destroy()
 
-        self._ui.recreate()
+        self._loop_ctl._ui_reset()
 
         for p in self._plugins:
             p.on_ui_create()
@@ -125,24 +124,15 @@ class Controller():
             p.on_main()
 
     def run(self):
-        logger.info("Starting PiKi v%s" % self.piki_version)
+        logger.info("Starting PiKi v%s" % piki_version)
         logger.info("piki_venv_dir = %s" % self.piki_venv_dir)
         logger.info("piki_dir = %s" % self.piki_dir)
         logger.info("piki_plugins_dir = %s" % self.piki_plugins_dir)
 
         self._load_plugins()
 
-        widget, palette = self._ui.get()
-        event_loop = urwid.AsyncioEventLoop()
-        event_loop.alarm(0, self._main)
-
-        self._main_loop = urwid.MainLoop(
-            widget, palette,
-            event_loop=event_loop,
-        )
-
         try:
-            self._main_loop.run()
+            self._loop_ctl._run(self._main)
         except KeyboardInterrupt:
             pass
         except Exception as e:
@@ -154,7 +144,7 @@ class Controller():
         # cleanup here, similarly to what the default runner does
         # https://github.com/python/cpython/blob/main/Lib/asyncio/runners.py
         # https://docs.python.org/3/library/asyncio-eventloop.html#asyncio.loop.close
-        loop = event_loop._loop
+        loop = self._loop_ctl.asyncio_loop
         try:
             tasks = asyncio.tasks.all_tasks(loop)
             if tasks:
@@ -174,20 +164,18 @@ class Controller():
         logger.info("End")
 
 
-class PluginControl():
-    piki_dir: str
-
-    def __init__(self, ctl):
-        self._ctl = ctl
+class PluginControlImpl(PluginControl):
+    def __init__(self, ctl: CoreController):
+        self._core_ctl = ctl
+        self._loop_ctl = ctl._loop_ctl
         self._draw_screen_handle = None
-        self.piki_dir = ctl.piki_dir
 
-    def loop_asyncio(self) -> asyncio.AbstractEventLoop:
-        # XXX: we are accessing urwid internals here (_loop)
-        return self._ctl._main_loop.event_loop._loop
+    @property
+    def loop_asyncio(self):
+        return self._loop_ctl.asyncio_loop
 
-    def loop_call_later(self, delay: float, callback: Callable[[], typing.Any]) -> asyncio.TimerHandle:
-        return self._ctl._main_loop.event_loop.alarm(delay, callback)
+    def loop_call_later(self, delay, callback):
+        return self._loop_ctl._event_loop.alarm(delay, callback)
 
     def loop_stop(self):
         def cb():
@@ -195,49 +183,32 @@ class PluginControl():
         self.loop_call_later(0, cb)
         # raise urwid.ExitMainLoop()
 
+    @property
+    def ui_internals(self):
+        return self._loop_ctl.internals
+
     def ui_draw_screen(self):
-        if self._ctl._main_loop and not self._draw_screen_handle:
+        if self._loop_ctl._main_loop and not self._draw_screen_handle:
             def cb():
                 self._draw_screen_handle = None
             self._draw_screen_handle = self.loop_call_later(0, cb)
 
-    def ui_recreate(self):
-        self.loop_call_later(0, self._ctl.ui_recreate)
+    def ui_reset(self):
+        self.loop_call_later(0, self._core_ctl._ui_reset)
 
-    def ui_setup_menu(
-        self, key: str, *,
-        title: str | None = None,
-        buttons: list[tuple[str, str | Callable[[], None]]] = [],
-        append=True, replace=True,
-    ):
+    def ui_menu_setup(self, key, *, title=None, buttons=..., append=True, replace=True):
         self.ui_draw_screen()
-        self._ctl._ui._w_menu.setup_menu(
+        self._loop_ctl._w_menu.menu_setup(
             key,
             title=title, buttons=buttons, append=append, replace=replace,
         )
 
-    def ui_setup_root_menu(
-        self, *,
-        title: str | None = None,
-        buttons: list[tuple[str, str | Callable[[], None]]] = [],
-        append=False, replace=False,
-    ):
+    def ui_menu_setup_root(self, *, title=None, buttons=..., append=False, replace=False):
         self.ui_draw_screen()
-        self._ctl._ui._w_menu.setup_root_menu(
+        self._loop_ctl._w_menu.menu_setup_root(
             title=title, buttons=buttons, append=append, replace=replace,
         )
 
-    def ui_remove_menu(self, key: str):
+    def ui_menu_remove(self, key):
         self.ui_draw_screen()
-        self._ctl._ui._w_menu.remove_menu(key)
-
-
-class Plugin(plugin.Plugin):
-    internal = False
-    ctl: PluginControl
-
-    def on_load(self): pass
-    def on_unload(self): pass
-    def on_main(self): pass
-    def on_ui_create(self): pass
-    def on_ui_destroy(self): pass
+        self._loop_ctl._w_menu.menu_remove(key)

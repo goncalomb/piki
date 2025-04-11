@@ -2,10 +2,10 @@ import asyncio
 import contextlib
 import subprocess
 
-import piki
+from piki.plugin import Plugin
 
 
-class Plugin(piki.Plugin):
+class SystemMenuPlugin(Plugin):
     def _run(self, args, sudo=False):
         if sudo:
             args = ['sudo', '-n'] + args
@@ -35,13 +35,13 @@ class Plugin(piki.Plugin):
                 self._run(['chvt', '1'])
                 await asyncio.sleep(5)
                 self._run(['chvt', '7'])
-        self.ctl.loop_asyncio().create_task(task())
+        self.ctl.loop_asyncio.create_task(task())
 
     def on_ui_create(self):
-        self.ctl.ui_setup_root_menu(buttons=[
+        self.ctl.ui_menu_setup_root(buttons=[
             ('System', 'piki.menu.system'),
         ])
-        self.ctl.ui_setup_menu('piki.menu.system', title='System', buttons=[
+        self.ctl.ui_menu_setup('piki.menu.system', title='System', buttons=[
             ('Show system log (5 sec.)', self._show_log),
             ('Reset', self.ctl.loop_stop),
             ('Reboot', lambda: self._run_safe(['reboot'], True)),

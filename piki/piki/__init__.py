@@ -1,3 +1,4 @@
-from .core import Plugin, PluginControl
+import importlib.metadata
 
-__all__ = ['Plugin', 'PluginControl']
+piki_version = importlib.metadata.version(__package__)
+piki_source_url = "https://github.com/goncalomb/piki"
