@@ -1,17 +1,8 @@
-- name: Install PiKi core
+- name: "Loading stage tasks"
   ansible.builtin.include_tasks:
-    file: install-core.yaml
-
-- name: Install RPi configuration
-  ansible.builtin.include_tasks:
-    file: install-rpi.yaml
-
-- name: Install PiKi user packages
-  ansible.builtin.include_tasks:
-    file: install-user-packages.yaml
-  when: piki_user_packages
-
-- name: Install PiKi user services
-  ansible.builtin.include_tasks:
-    file: install-user-services.yaml
-  when: piki_user_services | length > 0
+    file: stage-{{ piki_stage }}.yaml
+  when: "(not piki_stage_start or piki_stage_index >= piki_stages.index(piki_stage_start)) and (not piki_stage_stop or piki_stage_index < piki_stages.index(piki_stage_stop))"
+  loop: "{{ piki_stages }}"
+  loop_control:
+    loop_var: piki_stage
+    index_var: piki_stage_index

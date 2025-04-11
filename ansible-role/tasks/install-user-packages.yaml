@@ -1,7 +1,0 @@
-- become: true
-  block:
-    - name: Install {{ piki_user_packages }}
-      ansible.builtin.apt:
-        name: "{{ piki_user_packages }}"
-        cache_valid_time: 3600
-      when: piki_user_packages

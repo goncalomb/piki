@@ -1,11 +1,5 @@
 - become: true
   block:
-    - name: Create user services ({{ piki_user_services | length }})
-      ansible.builtin.template:
-        src: templates/piki-x.service.j2
-        dest: "/etc/systemd/system/{{ piki_user_services_prefix }}{{ item.name }}.service"
-      loop: "{{ piki_user_services }}"
-
     - name: Enable user services ({{ piki_user_services | length }})
       ansible.builtin.systemd_service:
         name: "{{ piki_user_services_prefix }}{{ item.name }}"
@@ -13,3 +7,11 @@
         enabled: true
         state: restarted
       loop: "{{ piki_user_services }}"
+
+    - name: Enable piki-tty.service
+      ansible.builtin.systemd_service:
+        name: piki-tty
+        daemon_reload: true
+        enabled: true
+        state: restarted
+      when: piki_tty_enabled

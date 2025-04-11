@@ -1,0 +1,13 @@
+- become: true
+  block:
+    - name: Install {{ piki_user_packages }}
+      ansible.builtin.apt:
+        name: "{{ piki_user_packages }}"
+        cache_valid_time: 3600
+      when: piki_user_packages
+
+    - name: Create user services ({{ piki_user_services | length }})
+      ansible.builtin.template:
+        src: templates/piki-x.service.j2
+        dest: "/etc/systemd/system/{{ piki_user_services_prefix }}{{ item.name }}.service"
+      loop: "{{ piki_user_services }}"
