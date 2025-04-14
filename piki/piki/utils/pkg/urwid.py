@@ -1,3 +1,4 @@
+import logging
 import typing
 
 import urwid
@@ -8,9 +9,6 @@ def make_button(label, *, on_click=None, attr_map=None, focus_map=None):
     if on_click:
         urwid.connect_signal(w_btn, 'click', on_click)
     if attr_map or focus_map:
-        if focus_map:
-            # hack to hide cursor
-            w_btn._label._cursor_position = len(label) + 1
         return urwid.AttrMap(w_btn, attr_map=attr_map, focus_map=focus_map)
     return w_btn
 
@@ -33,6 +31,76 @@ def make_list_buttons(spec, on_click=None, wrap_around=False):
         make_buttons(spec, on_click),
         wrap_around,
     ))
+
+
+class BoxButton(urwid.WidgetWrap):
+    # mixin signals from urwid.Button
+    signals = urwid.Button.signals
+    keypress = urwid.Button.keypress
+    mouse_event = urwid.Button.mouse_event
+
+    def __init__(
+        self, label, *, space=(2, 1), border=(2, 1),
+        align='left', wrap='space', layout=None,  # for urwid.SelectableIcon
+        title='', title_align='', title_attr=None,  # for urwid.LineBox
+        cursor_position=0,  # cursor_position=-1 -> hide
+    ):
+        s_x, s_y = space if isinstance(space, tuple) else (space, space)
+        b_x, b_y = border if isinstance(border, tuple) else (border, border)
+        b_x = b_x if s_x else False
+        b_y = b_y if s_y else False
+        s_x = s_x - 1 if b_x else s_x
+        s_y = s_y - 1 if b_y else s_y
+
+        self._label = urwid.SelectableIcon(
+            label, align=align, wrap=wrap, layout=layout,
+            cursor_position=1e9 if cursor_position < 0 else cursor_position,
+        )
+        super().__init__(self._label)
+
+        if s_x:
+            self._w = urwid.Padding(self._w, left=s_x, right=s_x)
+        if s_y:
+            self._w = urwid.Filler(self._w, top=s_y, bottom=s_y)
+        if b_x or b_y:
+            self._w = urwid.LineBox(
+                self._w,
+                title=title, title_align=title_align or align, title_attr=title_attr,
+                tlcorner='\N{FULL BLOCK}' if b_x > 1 or b_y > 1 else '\N{QUADRANT UPPER LEFT AND UPPER RIGHT AND LOWER LEFT}',
+                tline=[None, '\N{UPPER HALF BLOCK}', '\N{FULL BLOCK}'][b_y],
+                lline=[None, '\N{LEFT HALF BLOCK}', '\N{FULL BLOCK}'][b_x],
+                trcorner='\N{FULL BLOCK}' if b_x > 1 or b_y > 1 else '\N{QUADRANT UPPER LEFT AND UPPER RIGHT AND LOWER RIGHT}',
+                blcorner='\N{FULL BLOCK}' if b_x > 1 or b_y > 1 else '\N{QUADRANT UPPER LEFT AND LOWER LEFT AND LOWER RIGHT}',
+                rline=[None, '\N{RIGHT HALF BLOCK}', '\N{FULL BLOCK}'][b_x],
+                bline=[None, '\N{LOWER HALF BLOCK}', '\N{FULL BLOCK}'][b_y],
+                brcorner='\N{FULL BLOCK}' if b_x > 1 or b_y > 1 else '\N{QUADRANT UPPER RIGHT AND LOWER LEFT AND LOWER RIGHT}',
+            )
+
+
+class PileLoggingHandler(logging.Handler):
+    def __init__(
+        self, level: int | str = 0, *,
+        pile: urwid.Pile | None = None, max_content=10,
+        cb_draw_screen=None, cb_create_widget=None,
+    ):
+        super().__init__(level)
+        self._pile = urwid.Pile([]) if pile is None else pile
+        self._max_content = max_content
+        self._cb_draw_screen = cb_draw_screen
+        self._cb_create_widget = cb_create_widget or (lambda s: urwid.Text(s))
+
+    @property
+    def pile(self):
+        return self._pile
+
+    def emit(self, record):
+        contents = self._pile.contents
+        w = self._cb_create_widget(self.format(record))
+        contents.append(w if isinstance(w, tuple) else (w, ('pack', None)))
+        if self._max_content > 0:
+            self._pile.contents = contents[-self._max_content:]
+        if self._cb_draw_screen:
+            self._cb_draw_screen()
 
 
 class ConfigurableMenu(urwid.WidgetPlaceholder):
