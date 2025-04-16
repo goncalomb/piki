@@ -6,7 +6,7 @@ piki_add_bin_to_user_path: true
 piki_disable_getty_tty1: true
 piki_tty_enabled: true
 piki_tty_device: /dev/tty7
-piki_tty_font: Uni1-VGA32x16
+piki_tty_font: FullGreek-VGA32x16
 piki_tty_exec: '"{{ piki_dir }}/bin/piki-core"'
 piki_rpi_dto_gpio_ir: []
 piki_rpi_dto_gpio_key: []
