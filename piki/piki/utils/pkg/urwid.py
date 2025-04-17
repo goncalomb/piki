@@ -1,13 +1,95 @@
 import logging
+import os
 import typing
 
 import urwid
 
+_ss_default_attrs = {
+    'button': ['label'],
+    'boxbutton': ['label', 'title'],
+}
+
+
+def ss_attr_map_widget(w: urwid.Widget, name: str, *, attrs=None, flags=''):
+    if attrs is None:
+        attrs = _ss_default_attrs[name] if name in _ss_default_attrs else []
+    attr_map = {f'.{a}': f'.{name}.{a}' for a in attrs}
+    attr_map[None] = f'.{name}.wrap'
+    focus_map = {f'.{a}': f'.{name}/focus.{a}' for a in attrs}
+    focus_map[None] = f'.{name}/focus.wrap'
+    return urwid.AttrMap(w, attr_map, focus_map)
+
+
+def ss_attr_map_style(w: urwid.Widget, name: str, style: str, *, attrs=None, flags=''):
+    if attrs is None:
+        attrs = _ss_default_attrs[name] if name in _ss_default_attrs else []
+    attrs += ['wrap']
+    a_map = {f'.{name}.{a}': f'{style}.{name}.{a}' for a in attrs}
+    f_map = {f'.{name}/focus.{a}': f'{style}.{name}/focus.{a}' for a in attrs}
+    return urwid.AttrMap(w, {**a_map, **f_map})
+
+
+def ss_16color_names(white_is_gray: bool | None = None):
+    if white_is_gray is None:
+        white_is_gray = os.environ.get('TERM') == 'xterm-256color'
+    c_names = ['black', 'red', 'green', 'yellow',
+               'blue', 'magenta', 'cyan', 'white']
+    c_map = {
+        # rename yellow
+        'dark yellow': 'brown',
+        'light yellow': 'yellow',
+        # handle black/gray/white
+        'dark black': 'black',
+        'light black': 'white' if white_is_gray else 'dark gray',
+        'dark white': 'dark gray' if white_is_gray else 'light gray',
+        'light white': 'light gray' if white_is_gray else 'white',
+    }
+    c_dark = (f'dark {c}' for c in c_names)
+    c_dark = list(map(lambda c: c_map[c] if c in c_map else c, c_dark))
+    c_light = (f'light {c}' for c in c_names)
+    c_light = list(map(lambda c: c_map[c] if c in c_map else c, c_light))
+    return zip(c_names, c_dark, c_light)
+
+
+def ss_make_button(label, **kwargs):
+    return ss_attr_map_widget(urwid.Button(('.label', label), **kwargs), 'button')
+
+
+def ss_make_boxbutton(label, **kwargs):
+    return ss_attr_map_widget(BoxButton(('.label', label), title_attr='.title', **kwargs), 'boxbutton')
+
+
+def ss_make_default_palette(prefix='ss', white_is_gray: bool | None = None):
+    for color, dark, light in ss_16color_names(white_is_gray):
+        # style name
+        name = f'{prefix}.{color}'
+        # high contrast foreground
+        fg_hc = 'white' if color in [
+            'magenta', 'cyan', 'white',
+        ] else 'light gray'
+        # button
+        yield f'{name}.button.label', fg_hc, dark
+        yield f'{name}.button/focus.label', 'white', dark
+        yield f'{name}.button.wrap', 'dark gray', dark
+        yield f'{name}.button/focus.wrap', light, dark
+        # boxbutton
+        yield f'{name}.boxbutton.label', fg_hc, dark
+        yield f'{name}.boxbutton/focus.label', 'white', dark
+        yield f'{name}.boxbutton.title', fg_hc, dark
+        yield f'{name}.boxbutton/focus.title', 'white', dark
+        yield f'{name}.boxbutton.wrap', dark, dark
+        yield f'{name}.boxbutton/focus.wrap', light, dark
+        # generic
+        yield f'{name}.fg', dark, ''
+        yield f'{name}.bg', fg_hc, dark
+        yield f'{name}/bright.fg', light, ''
+        yield f'{name}/bright.bg', fg_hc, light
+
 
 def make_button(label, *, on_click=None, attr_map=None, focus_map=None):
-    w_btn = urwid.Button(label)
+    w_btn = ss_make_button(label)
     if on_click:
-        urwid.connect_signal(w_btn, 'click', on_click)
+        urwid.connect_signal(w_btn.base_widget, 'click', on_click)
     if attr_map or focus_map:
         return urwid.AttrMap(w_btn, attr_map=attr_map, focus_map=focus_map)
     return w_btn
@@ -103,16 +185,17 @@ class PileLoggingHandler(logging.Handler):
             self._cb_draw_screen()
 
 
-class ConfigurableMenu(urwid.WidgetPlaceholder):
+class ConfigurableMenu(urwid.WidgetWrap):
     back_label = 'BACK'
     back_keys = ['esc', 'backspace']
     attr_focused = 'focused'
     attr_disabled = 'disabled'
 
-    def __init__(self, root_key='menu', root_title=''):
+    def __init__(self, root_key='menu', root_title='', ss_style=None):
         super().__init__(urwid.Pile([]))
         self.attr_focused = root_key + '.' + self.attr_focused
         self.attr_disabled = root_key + '.' + self.attr_disabled
+        self._w = ss_attr_map_style(self._w, 'button', ss_style or root_key)
         self._menus = {}
         self._stack = [root_key]
         self.menu_setup(root_key, title=root_title)
@@ -127,7 +210,7 @@ class ConfigurableMenu(urwid.WidgetPlaceholder):
             focus_map=self.attr_focused,
         )
         w_menu = self._menus[self._stack[-1]][0]
-        self.original_widget.contents = [
+        self._w.base_widget.contents = [
             (urwid.Columns([
                 ('pack', w_back_btn),
                 ('weight', 1, urwid.Text(crumbs)),

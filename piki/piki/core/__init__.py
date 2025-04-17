@@ -7,18 +7,13 @@ import urwid
 from .. import piki_version
 from ..plugin import Plugin, PluginControl, UIInternals
 from ..utils import venv_find_dir
-from ..utils.pkg import urwid as tui
+from ..utils.pkg.urwid import ss_make_default_palette, ConfigurableMenu
 from ..utils.plugin import load_plugins
 
 logger = logging.getLogger(__name__)
 
 
 class UILoopController():
-    _default_palette = [
-        ('piki.menu.focused', 'standout', ''),
-        ('piki.menu.disabled', 'dark gray', ''),
-    ]
-
     def __init__(self):
         self._main_loop = None
         self._event_loop = None
@@ -33,20 +28,28 @@ class UILoopController():
     def internals(self):
         return UIInternals(self._main_loop, self._w_root, self._w_frame)
 
+    def _default_palette(self):
+        for p in ss_make_default_palette():
+            yield p
+        yield 'piki.menu.button.label', '', ''
+        yield 'piki.menu.button/focus.label', 'standout', ''
+        yield 'piki.menu.button.wrap', '', '',
+        yield 'piki.menu.button/focus.wrap', 'dark cyan', ''
+
     def _ui_reset(self):
-        self._w_menu = tui.ConfigurableMenu('piki.menu')
+        self._w_menu = ConfigurableMenu('piki.menu')
         self._w_frame = urwid.Frame(self._w_menu)
         self._w_root = urwid.WidgetPlaceholder(self._w_frame)
         if (self._main_loop):
             self._main_loop.widget = self._w_root
-            self._main_loop.screen.register_palette(self._default_palette)
+            self._main_loop.screen.register_palette(self._default_palette())
 
     def _run(self, main):
         self._event_loop = urwid.AsyncioEventLoop()
         self._event_loop.alarm(0, main)
 
         self._main_loop = urwid.MainLoop(
-            self._w_root, self._default_palette,
+            self._w_root, self._default_palette(),
             event_loop=self._event_loop,
         )
 

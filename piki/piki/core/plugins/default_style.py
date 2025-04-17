@@ -4,8 +4,8 @@ from piki.plugin import Plugin
 
 
 class DefaultStylePlugin(Plugin):
-    _title = "PiKi"
-    _header_message = "A Raspberry [Pi Ki]osk"
+    _title = ('ss.cyan.fg', 'PiKi')
+    _header_message = ['A Raspberry ', ('ss.cyan.fg', 'Pi Ki'), 'osk']
     _footer_message = "piki v%s \N{BULLET} %s" % (
         piki_version, piki_source_url,
     )
