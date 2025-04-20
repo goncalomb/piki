@@ -12,8 +12,8 @@
         dest: "/etc/systemd/system/{{ piki_user_services_prefix }}{{ item.name }}.service"
       loop: "{{ piki_user_services }}"
 
-    - name: Copy user plugins ({{ piki_user_plugins_copy | length }})
-      ansible.builtin.copy:
-        src: "{{ item }}"
-        dest: "{{ piki_dir }}/plugins/"
-      loop: "{{ piki_user_plugins_copy }}"
+- name: Copy user plugins ({{ piki_user_plugins_copy | length }})
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "{{ piki_dir }}/plugins/"
+  loop: "{{ piki_user_plugins_copy }}"
