@@ -18,6 +18,14 @@ class SystemMenuPlugin(Plugin):
             check=True,
         )
 
+    def _run_output(self, args):
+        return subprocess.check_output(
+            args,
+            stdin=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            text=True,
+        )
+
     @contextlib.contextmanager
     def _run_safe_ctx(self):
         try:
@@ -34,6 +42,15 @@ class SystemMenuPlugin(Plugin):
             'Cancel',
             (btn_label, btn_ss_style, lambda *_: self._run_safe(args)),
         ])
+
+    def _show_hostname(self):
+        with self._run_safe_ctx():
+            self.ctl.ui_message_box('\n'.join([
+                'hostname:',
+                '  ' + self._run_output(['hostname']).strip(),
+                'addresses:',
+                '  ' + self._run_output(['hostname', '-I']).strip(),
+            ]), title='System')
 
     def _show_log(self):
         async def task():
@@ -112,6 +129,7 @@ class SystemMenuPlugin(Plugin):
             ('System', 'piki.menu.system'),
         ])
         self.ctl.ui_menu_setup('piki.menu.system', title='System', buttons=[
+            ('Show hostname', self._show_hostname),
             ('Show system log (5 sec.)', self._show_log),
             ('Show standard style palette', show_palette),
             ('Restart PiKi', self.ctl.loop_stop),
