@@ -9,9 +9,7 @@ from piki.utils.pkg.urwid import (ss_16color_names, ss_attr_map_style,
 
 
 class SystemMenuPlugin(Plugin):
-    def _run(self, args, sudo=False):
-        if sudo:
-            args = ['sudo', '-n'] + args
+    def _run(self, args):
         return subprocess.run(
             args,
             stdin=subprocess.DEVNULL,
@@ -27,9 +25,15 @@ class SystemMenuPlugin(Plugin):
         except (FileNotFoundError, subprocess.CalledProcessError) as e:
             self.logger.exception("Subprocess exception", exc_info=e)
 
-    def _run_safe(self, args, sudo=False):
+    def _run_safe(self, args):
         with self._run_safe_ctx():
-            return self._run(args, sudo)
+            return self._run(args)
+
+    def _run_message_box(self, args, message, btn_label, btn_ss_style):
+        self.ctl.ui_message_box(message, title='System', buttons=[
+            'Cancel',
+            (btn_label, btn_ss_style, lambda *_: self._run_safe(args)),
+        ])
 
     def _show_log(self):
         async def task():
@@ -40,8 +44,7 @@ class SystemMenuPlugin(Plugin):
                 self._run(['chvt', '7'])
         self.ctl.loop_asyncio.create_task(task())
 
-    def _show_palette(self):
-        ui = self.ctl.ui_internals
+    def _win_show_palette(self, wh):
         prefix = 'ss'
 
         def btn(label, color):
@@ -50,14 +53,12 @@ class SystemMenuPlugin(Plugin):
         def box(label, color):
             return ss_attr_map_style(ss_make_boxbutton(label), 'boxbutton', f'{prefix}.{color}')
 
-        def exit_cb(w):
-            ui.w_root.original_widget = self._ui_w_root
-
         exit_button = btn('Close/Exit', 'white')
-        urwid.signals.connect_signal(exit_button.base_widget, 'click', exit_cb)
+        urwid.signals.connect_signal(
+            exit_button.base_widget, 'click', lambda w: wh.close())
 
         c_names = list(map(lambda x: x[0], ss_16color_names()))
-        ui.w_root.original_widget = urwid.Padding(urwid.Filler(urwid.Pile([
+        return urwid.Padding(urwid.Filler(urwid.Pile([
             urwid.Padding(exit_button, width=20),
             urwid.Text(''),
             urwid.Text((
@@ -92,14 +93,28 @@ class SystemMenuPlugin(Plugin):
         ])), left=2, right=2)
 
     def on_ui_create(self):
-        self._ui_w_root = self.ctl.ui_internals.w_root.original_widget
+        def show_palette():
+            self.ctl.ui_window_open(self._win_show_palette)
+
+        def reboot():
+            self._run_message_box(
+                ['sudo', '-n', 'reboot'],
+                'Reboot the system?', 'Reboot', 'ss.yellow'
+            )
+
+        def shutdown():
+            self._run_message_box(
+                ['sudo', '-n', 'shutdown'],
+                'Shutdown the system?', 'Shutdown', 'ss.red'
+            )
+
         self.ctl.ui_menu_setup_root(buttons=[
             ('System', 'piki.menu.system'),
         ])
         self.ctl.ui_menu_setup('piki.menu.system', title='System', buttons=[
-            ('Debug: system log (5 sec.)', self._show_log),
-            ('Debug: standard style palette', self._show_palette),
-            ('Reset', self.ctl.loop_stop),
-            ('Reboot', lambda: self._run_safe(['reboot'], True)),
-            ('Power off', lambda: self._run_safe(['poweroff'], True)),
+            ('Show system log (5 sec.)', self._show_log),
+            ('Show standard style palette', show_palette),
+            ('Restart PiKi', self.ctl.loop_stop),
+            ('Reboot', reboot),
+            ('Shutdown', shutdown),
         ])
