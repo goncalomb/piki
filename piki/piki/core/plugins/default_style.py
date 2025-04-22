@@ -12,16 +12,17 @@ class DefaultStylePlugin(Plugin):
 
     def on_ui_create(self):
         ui = self.ctl.ui_internals
-        # wrap root in overlay and padding
-        ui.w_root.original_widget = urwid.Overlay(
+        # close main window and reopen with "fake" overlay
+        self.ctl.ui_window_close_all()
+        self.ctl.ui_window_open(urwid.Overlay(
             urwid.Padding(
-                ui.w_root.original_widget,
+                ui.w_frame,
                 left=2, right=2,
             ),
             urwid.SolidFill("\N{MEDIUM SHADE}"),
-            'center', ('relative', 80),
-            'middle', ('relative', 80),
-        )
+            'center', ('relative', 75),
+            'middle', ('relative', 100),
+        ), z=100)
         # wrap body
         ui.w_frame.body = urwid.Padding(
             ui.w_frame.body, 'center', ('relative', 40)

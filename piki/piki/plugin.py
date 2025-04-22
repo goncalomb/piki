@@ -5,6 +5,7 @@ import typing
 import urwid
 
 from .utils import plugin as _plugin
+from .utils.pkg import urwid as _urwid
 
 
 @dataclasses.dataclass(frozen=True)
@@ -12,6 +13,7 @@ class UIInternals():
     main_loop: urwid.MainLoop | None
     w_root: urwid.WidgetPlaceholder
     w_frame: urwid.Frame
+    # XXX: add more internals (stack/menu)?
 
 
 class PluginControl():
@@ -78,6 +80,33 @@ class PluginControl():
     def ui_menu_remove(self, key: str):
         """
         Remove menu.
+        """
+
+    def ui_window_open(
+        self, w: urwid.Widget | typing.Callable[[_urwid.WindowStack.WindowHandle], urwid.Widget], *,
+        z=500, overlay=False,
+    ) -> _urwid.WindowStack.WindowHandle:
+        """
+        Open window.
+        """
+
+    def ui_window_close_top(self):
+        """
+        Close top window.
+        """
+
+    def ui_window_close_all(self):
+        """
+        Close all windows.
+        """
+
+    def ui_message_box(
+        self, body, *,
+        buttons='OK', title='', title_attr=None,
+        callback=None, autoclose=True, attr_map=None,
+    ) -> _urwid.WindowStack.WindowHandle:
+        """
+        Open message box.
         """
 
 

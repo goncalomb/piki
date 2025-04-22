@@ -7,8 +7,10 @@ import urwid
 from .. import piki_version
 from ..plugin import Plugin, PluginControl, UIInternals
 from ..utils import venv_find_dir
-from ..utils.pkg.urwid import ss_make_default_palette, ConfigurableMenu
+from ..utils.pkg.urwid import (ConfigurableMenu, WindowStack,
+                               ss_make_default_palette)
 from ..utils.plugin import load_plugins
+from . import ui
 
 logger = logging.getLogger(__name__)
 
@@ -37,9 +39,17 @@ class UILoopController():
         yield 'piki.menu.button/focus.wrap', 'dark cyan', ''
 
     def _ui_reset(self):
+        w_no_ui = urwid.Overlay(
+            urwid.Text('!'),
+            urwid.SolidFill("\N{MEDIUM SHADE}"),
+            'center', 'pack', 'middle', 'pack',
+        )
         self._w_menu = ConfigurableMenu('piki.menu')
         self._w_frame = urwid.Frame(self._w_menu)
-        self._w_root = urwid.WidgetPlaceholder(self._w_frame)
+        self._w_stack = WindowStack(w_no_ui)
+        self._w_root = urwid.WidgetPlaceholder(self._w_stack)
+        self._w_stack.window_open(lambda *_: self._w_frame, z=100)
+
         if (self._main_loop):
             self._main_loop.widget = self._w_root
             self._main_loop.screen.register_palette(self._default_palette())
@@ -215,3 +225,17 @@ class PluginControlImpl(PluginControl):
     def ui_menu_remove(self, key):
         self.ui_draw_screen()
         self._loop_ctl._w_menu.menu_remove(key)
+
+    def ui_window_open(self, callback, *, z=500, overlay=False):
+        return self._loop_ctl._w_stack.window_open(
+            callback, z=999 if z > 999 else z, overlay=overlay)
+
+    def ui_window_close_top(self):
+        self._loop_ctl._w_stack.window_close_top()
+
+    def ui_window_close_all(self):
+        self._loop_ctl._w_stack.window_close_all()
+
+    def ui_message_box(self, *args, **kwargs):
+        return self._loop_ctl._w_stack.window_open(
+            ui.message_box(*args, **kwargs), z=2000, overlay=True)
