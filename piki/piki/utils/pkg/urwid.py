@@ -86,6 +86,22 @@ def ss_make_default_palette(prefix='ss', white_is_gray: bool | None = None):
         yield f'{name}/bright.bg', fg_hc, light
 
 
+def cm_x_as_y(w: urwid.Widget, copy=True):
+    cm = w._command_map.copy() if copy else w._command_map
+    cm['left'] = urwid.CURSOR_UP
+    cm['right'] = urwid.CURSOR_DOWN
+    w._command_map = cm
+    return w
+
+
+def cm_y_as_x(w: urwid.Widget, copy=True):
+    cm = w._command_map.copy() if copy else w._command_map
+    cm['up'] = urwid.CURSOR_LEFT
+    cm['down'] = urwid.CURSOR_RIGHT
+    w._command_map = cm
+    return w
+
+
 def make_button(label, *, on_click=None, attr_map=None, focus_map=None):
     w_btn = ss_make_button(label)
     if on_click:

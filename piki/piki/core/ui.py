@@ -1,5 +1,6 @@
 import urwid
-from piki.utils.pkg.urwid import ss_attr_map_style, ss_make_boxbutton
+from piki.utils.pkg.urwid import (cm_y_as_x, ss_attr_map_style,
+                                  ss_make_boxbutton)
 
 
 def message_box(
@@ -57,7 +58,7 @@ def message_box(
         if buttons:
             buttons = list(buttons)
             contents.append(urwid.Filler(
-                urwid.Columns(make_buttons(), 1),
+                cm_y_as_x(urwid.Columns(make_buttons(), 1)),
                 top=1,
             ))
         w = urwid.Pile(contents)
