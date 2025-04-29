@@ -2,14 +2,27 @@ import importlib
 import logging
 import os
 import types
+import contextlib
+
+
+@contextlib.contextmanager
+def _replace_attr(obj, name: str, value):
+    orig = getattr(obj, name)
+    setattr(obj, name, value)
+    try:
+        yield orig
+    finally:
+        setattr(obj, name, orig)
 
 
 def _exec_module(location):
     name = os.path.basename(location)
     if os.path.isdir(location):
         location = os.path.join(location, '__init__.py')
-    spec = importlib.util.spec_from_file_location(
-        name.replace('.', '_'), location)
+    elif name[-3:] == '.py':
+        name = name[:-3]
+    name = name.replace('.', '_')
+    spec = importlib.util.spec_from_file_location(name, location)
     if spec:
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
@@ -24,26 +37,22 @@ def load_plugin(path, plugin_base_class, cb_plugin_init):
     plugin_class = None
 
     @classmethod
-    def plugin_init_subclass(cls):
+    def plugin__init_subclass__(cls):
         nonlocal plugin_class
         if plugin_class:
             raise Exception("Cannot declare multiple plugin classes")
         plugin_class = cls
 
     # replace __init_subclass__ to capture class
-    init_subclass_org = plugin_base_class.__init_subclass__
-    plugin_base_class.__init_subclass__ = plugin_init_subclass
-    try:
+    with _replace_attr(plugin_base_class, '__init_subclass__', plugin__init_subclass__):
         # load plugin
         plugin_module = _exec_module(path)
-    finally:
-        plugin_base_class.__init_subclass__ = init_subclass_org
 
     # default to base, if plugin class was not declared
     if not plugin_class:
-        plugin_class = plugin_base_class
+        raise Exception("Plugin did not declare a plugin class")
 
-    def plugin_init(self):
+    def plugin__init__(self):
         self.logger = logging.getLogger(plugin_module.__name__)
         self.module = plugin_module
         self.path = path
@@ -51,13 +60,9 @@ def load_plugin(path, plugin_base_class, cb_plugin_init):
         cb_plugin_init(self)
 
     # replace __init__ for initialization
-    init_org = Plugin.__init__
-    Plugin.__init__ = plugin_init
-    try:
+    with _replace_attr(Plugin, '__init__', plugin__init__):
         # initialize plugin
         plugin = plugin_class()
-    finally:
-        Plugin.__init__ = init_org
 
     return plugin
 
@@ -68,9 +73,12 @@ def load_plugins(path, plugin_base_class, cb_plugin_init):
 
     res = []
     for f in os.scandir(path):
-        if f.name[0] == '_':
+        if f.name[0] in ('.', '_'):
             continue
-        res.append(load_plugin(f.path, plugin_base_class, cb_plugin_init))
+        try:
+            res.append(load_plugin(f.path, plugin_base_class, cb_plugin_init))
+        except:
+            raise Exception("Failed to load plugin '%s'" % f.path)
     return res
 
 
