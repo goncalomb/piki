@@ -6,14 +6,16 @@ import urwid
 
 from .utils import plugin as _plugin
 from .utils.pkg import urwid as _urwid
+from .utils.pkg import urwid_window as _urwid_window
 
 
 @dataclasses.dataclass(frozen=True)
 class UIInternals():
     main_loop: urwid.MainLoop | None
-    w_root: urwid.WidgetPlaceholder
+    wm: _urwid_window.WindowManager
+    wd_menu: _urwid_window.Window
     w_frame: urwid.Frame
-    # XXX: add more internals (stack/menu)?
+    w_menu: _urwid.ConfigurableMenu
 
 
 class PluginControl():
@@ -83,9 +85,11 @@ class PluginControl():
         """
 
     def ui_window_open(
-        self, w: urwid.Widget | typing.Callable[[_urwid.WindowStack.WindowHandle], urwid.Widget], *,
-        z=500, overlay=False,
-    ) -> _urwid.WindowStack.WindowHandle:
+        self, w: urwid.Widget | typing.Callable[[_urwid_window.Window], urwid.Widget], *,
+        title: str | None = None,
+        style: _urwid_window.WindowStyle | bool = True,
+        overlay: dict | bool = False,
+    ) -> _urwid_window.Window:
         """
         Open window.
         """
@@ -102,9 +106,10 @@ class PluginControl():
 
     def ui_message_box(
         self, body, *,
+        parent: _urwid_window.Window | None = None,
         buttons='OK', title='', title_attr=None,
         callback=None, autoclose=True, attr_map=None,
-    ) -> _urwid.WindowStack.WindowHandle:
+    ) -> _urwid_window.Window:
         """
         Open message box.
         """

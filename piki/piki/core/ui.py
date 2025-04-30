@@ -2,11 +2,14 @@ import urwid
 from piki.utils.pkg.urwid import (cm_y_as_x, ss_attr_map_style,
                                   ss_make_boxbutton)
 
+from ..utils.pkg.urwid_window import Window
+
 
 def message_box(
     body, *,
-    buttons='OK', title='', title_attr=None,
-    callback=None, autoclose=True, attr_map=None,
+    buttons='OK',
+    callback=None,
+    autoclose=True,
 ):
     default_spec = ('OK', 'ss.white', None, autoclose)
     default_buttons = {
@@ -22,7 +25,7 @@ def message_box(
             buttons.split(','),
         )
 
-    def win(wh):
+    def win(wd: Window):
         def make_button(i, spec):
             label, style, cback, aclose = map(
                 lambda d, v: d if v is None else v,
@@ -35,13 +38,13 @@ def message_box(
             )
             if aclose:
                 urwid.connect_signal(
-                    btn.base_widget, 'click', lambda w: wh.close())
+                    btn.base_widget, 'click', lambda w: wd.close())
             if cback:
                 urwid.connect_signal(
-                    btn.base_widget, 'click', lambda w: cback(wh, i))
+                    btn.base_widget, 'click', lambda w: cback(wd, i))
             if callback:
                 urwid.connect_signal(
-                    btn.base_widget, 'click', lambda w: callback(wh, i))
+                    btn.base_widget, 'click', lambda w: callback(wd, i))
             return btn
 
         def make_buttons():
@@ -61,17 +64,10 @@ def message_box(
                 cm_y_as_x(urwid.Columns(make_buttons(), 1)),
                 top=1,
             ))
-        w = urwid.Pile(contents)
-        if title is not None:
-            w = urwid.LineBox(
-                urwid.Filler(urwid.Padding(
-                    w, left=2, right=2), top=1, bottom=1
-                ),
-                title=title,
-                title_align='left',
-                title_attr=title_attr
-            )
-        if attr_map:
-            w = urwid.AttrMap(w, attr_map)
-        return w
+        return urwid.Filler(
+            urwid.Padding(
+                urwid.Pile(contents),
+                left=2, right=2,
+            ), top=1, bottom=1,
+        )
     return win

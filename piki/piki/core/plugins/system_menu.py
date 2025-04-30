@@ -61,7 +61,7 @@ class SystemMenuPlugin(Plugin):
                 self._run(['chvt', '7'])
         self.ctl.loop_asyncio.create_task(task())
 
-    def _win_show_palette(self, wh):
+    def _win_show_palette(self, wd):
         prefix = 'ss'
 
         def btn(label, color):
@@ -72,16 +72,11 @@ class SystemMenuPlugin(Plugin):
 
         exit_button = btn('Close/Exit', 'white')
         urwid.signals.connect_signal(
-            exit_button.base_widget, 'click', lambda w: wh.close())
+            exit_button.base_widget, 'click', lambda w: wd.close())
 
         c_names = list(map(lambda x: x[0], ss_16color_names()))
-        return urwid.Padding(urwid.Filler(urwid.Pile([
+        return urwid.ScrollBar(urwid.Filler(urwid.Padding(urwid.ListBox([
             urwid.Padding(exit_button, width=20),
-            urwid.Text(''),
-            urwid.Text((
-                f'{prefix}.white/bright.fg',
-                'PiKi Standard Style (ss) default palette attributes:',
-            )),
             urwid.Text(''),
             urwid.Text([
                 (f'{prefix}.cyan.fg', 'urwid.Button'),
@@ -107,11 +102,18 @@ class SystemMenuPlugin(Plugin):
                           [urwid.Text((f'{prefix}.{c}/bright.fg', c)) for c in c_names], 1),
             urwid.Columns([('pack', urwid.Text(f'{prefix}.[color]/bright.bg:'))] +
                           [urwid.Text((f'{prefix}.{c}/bright.bg', c)) for c in c_names], 1),
-        ])), left=2, right=2)
+        ]), left=1, right=1), top=1, bottom=1, height=('relative', 100)))
 
     def on_ui_create(self):
         def show_palette():
-            self.ctl.ui_window_open(self._win_show_palette)
+            self.ctl.ui_window_open(
+                self._win_show_palette,
+                title='PiKi Standard Style (ss) default palette and attributes',
+                overlay={
+                    'width': ('relative', 95),
+                    'height': ('relative', 85),
+                }
+            )
 
         def reboot():
             self._run_message_box(

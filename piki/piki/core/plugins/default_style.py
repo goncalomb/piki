@@ -1,6 +1,15 @@
 import urwid
 from piki import piki_source_url, piki_version
 from piki.plugin import Plugin
+from piki.utils.pkg.urwid_window import WindowStyle
+
+
+class MenuWindowStyle(WindowStyle):
+    def render(self, wd):
+        return urwid.Padding(
+            super().render(wd),
+            left=2, right=2,
+        )
 
 
 class DefaultStylePlugin(Plugin):
@@ -12,17 +21,14 @@ class DefaultStylePlugin(Plugin):
 
     def on_ui_create(self):
         ui = self.ctl.ui_internals
-        # close main window and reopen with "fake" overlay
-        self.ctl.ui_window_close_all()
-        self.ctl.ui_window_open(urwid.Overlay(
-            urwid.Padding(
-                ui.w_frame,
-                left=2, right=2,
-            ),
-            urwid.SolidFill("\N{MEDIUM SHADE}"),
-            'center', ('relative', 75),
-            'middle', ('relative', 100),
-        ), z=100)
+        # restyle menu window
+        ui.wd_menu.modify(
+            style=MenuWindowStyle(),
+            overlay={
+                'width': ('relative', 75),
+                'height': ('relative', 100),
+            },
+        )
         # wrap body
         ui.w_frame.body = urwid.Padding(
             ui.w_frame.body, 'center', ('relative', 40)

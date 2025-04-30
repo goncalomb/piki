@@ -7,8 +7,9 @@ import urwid
 from .. import piki_version
 from ..plugin import Plugin, PluginControl, UIInternals
 from ..utils import venv_find_dir
-from ..utils.pkg.urwid import (ConfigurableMenu, WindowStack,
-                               ss_make_default_palette)
+from ..utils.pkg.urwid import ConfigurableMenu, ss_make_default_palette
+from ..utils.pkg.urwid_window import (Window, WindowManager,
+                                      WindowStyleOverlayLineBox)
 from ..utils.plugin import load_plugins
 from . import ui
 
@@ -28,7 +29,7 @@ class UILoopController():
 
     @property
     def internals(self):
-        return UIInternals(self._main_loop, self._w_root, self._w_frame)
+        return UIInternals(self._main_loop, self._wm, self._wd_menu, self._w_frame, self._w_menu)
 
     def _default_palette(self):
         for p in ss_make_default_palette():
@@ -39,19 +40,14 @@ class UILoopController():
         yield 'piki.menu.button/focus.wrap', 'dark cyan', ''
 
     def _ui_reset(self):
-        w_no_ui = urwid.Overlay(
-            urwid.Text('!'),
-            urwid.SolidFill("\N{MEDIUM SHADE}"),
-            'center', 'pack', 'middle', 'pack',
-        )
         self._w_menu = ConfigurableMenu('piki.menu')
         self._w_frame = urwid.Frame(self._w_menu)
-        self._w_stack = WindowStack(w_no_ui)
-        self._w_root = urwid.WidgetPlaceholder(self._w_stack)
-        self._w_stack.window_open(lambda *_: self._w_frame, z=100)
-
+        self._wm = WindowManager()
+        self._wd_menu = self._wm.root.make_window(
+            self._w_frame, title='PiKi Menu',
+        )
         if (self._main_loop):
-            self._main_loop.widget = self._w_root
+            self._main_loop.widget = self._wm.widget
             self._main_loop.screen.register_palette(self._default_palette())
 
     def _run(self, main):
@@ -59,7 +55,7 @@ class UILoopController():
         self._event_loop.alarm(0, main)
 
         self._main_loop = urwid.MainLoop(
-            self._w_root, self._default_palette(),
+            self._wm.widget, self._default_palette(),
             event_loop=self._event_loop,
         )
 
@@ -226,16 +222,40 @@ class PluginControlImpl(PluginControl):
         self.ui_draw_screen()
         self._loop_ctl._w_menu.menu_remove(key)
 
-    def ui_window_open(self, callback, *, z=500, overlay=False):
-        return self._loop_ctl._w_stack.window_open(
-            callback, z=999 if z > 999 else z, overlay=overlay)
+    def ui_window_open(self, *args, **kwargs):
+        return self._loop_ctl._wm.root.make_window(*args, **kwargs)
 
     def ui_window_close_top(self):
-        self._loop_ctl._w_stack.window_close_top()
+        wd_top = self._loop_ctl._wm.root.first_child
+        if wd_top:
+            wd_top.close()
 
     def ui_window_close_all(self):
-        self._loop_ctl._w_stack.window_close_all()
+        for wd in list(self._loop_ctl._wm.root.children):
+            wd.close()
 
-    def ui_message_box(self, *args, **kwargs):
-        return self._loop_ctl._w_stack.window_open(
-            ui.message_box(*args, **kwargs), z=2000, overlay=True)
+    def ui_message_box(
+        self, body, *,
+        parent: Window | None = None,
+        buttons='OK', title='', title_attr=None,
+        callback=None, autoclose=True, attr_map=None,
+    ):
+        wd_p = self._loop_ctl._wm.root
+        if parent and parent.is_open:
+            wd_p = parent
+        elif self._loop_ctl._wd_menu.is_open:
+            wd_p = self._loop_ctl._wd_menu
+        return wd_p.make_window(
+            ui.message_box(
+                body,
+                buttons=buttons,
+                callback=callback,
+                autoclose=autoclose,
+            ),
+            title=title,
+            style=WindowStyleOverlayLineBox(
+                title_attr=title_attr,
+                attr_map=attr_map,
+            ),
+            overlay=True,
+        )
