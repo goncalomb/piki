@@ -43,14 +43,34 @@ class SystemMenuPlugin(Plugin):
             (btn_label, btn_ss_style, lambda *_: self._run_safe(args)),
         ])
 
-    def _show_hostname(self):
+    def _show_system_information(self):
         with self._run_safe_ctx():
-            self.ctl.ui_message_box('\n'.join([
-                'hostname:',
-                '  ' + self._run_output(['hostname']).strip(),
-                'addresses:',
-                '  ' + self._run_output(['hostname', '-I']).strip(),
-            ]), title='System')
+            def cmd_text(args):
+                text = self._run_output(args).strip().split('\n')
+                text = '\n'.join(map(lambda x: '  ' + x, text))
+                return urwid.Text(text)
+            contents = [
+                urwid.Text(('ss.cyan.fg', 'uname -a')),
+                cmd_text(['uname', '-a']),
+                urwid.Text(('ss.cyan.fg', 'uptime')),
+                cmd_text(['uptime']),
+                urwid.Text(('ss.cyan.fg', 'free --si -ht')),
+                cmd_text(['free', '--si', '-ht']),
+                urwid.Text(('ss.cyan.fg', 'hostname -I')),
+                cmd_text(['hostname', '-I']),
+                urwid.Text(('ss.cyan.fg', 'df -H')),
+                cmd_text(['df', '-H']),
+            ]
+            self.ctl.ui_window_make(
+                urwid.Padding(urwid.ScrollBar(urwid.Padding(
+                    urwid.ListBox(contents), right=1,
+                )), left=1),
+                title='System Information',
+                overlay={
+                    'width': ('relative', 80),
+                    'height': ('relative', 75),
+                }
+            )
 
     def _show_log(self):
         async def task():
@@ -131,7 +151,7 @@ class SystemMenuPlugin(Plugin):
             ('System', 'piki.menu.system'),
         ])
         self.ctl.ui_menu_setup('piki.menu.system', title='System', buttons=[
-            ('Show hostname', self._show_hostname),
+            ('Show system information', self._show_system_information),
             ('Show system log (5 sec.)', self._show_log),
             ('Show standard style palette', show_palette),
             ('Restart PiKi', self.ctl.loop_stop),
