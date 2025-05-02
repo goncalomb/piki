@@ -5,9 +5,9 @@ from piki.utils.pkg.urwid_window import WindowStyle
 
 
 class MenuWindowStyle(WindowStyle):
-    def render(self, wd):
+    def render(self, wd, w):
         return urwid.Padding(
-            super().render(wd),
+            super().render(wd, w),
             left=2, right=2,
         )
 

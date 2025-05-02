@@ -8,8 +8,7 @@ from .. import piki_version
 from ..plugin import Plugin, PluginControl, UIInternals
 from ..utils import venv_find_dir
 from ..utils.pkg.urwid import ConfigurableMenu, ss_make_default_palette
-from ..utils.pkg.urwid_window import (Window, WindowManager,
-                                      WindowStyleOverlayLineBox)
+from ..utils.pkg.urwid_window import Window, WindowManager
 from ..utils.plugin import load_plugins
 from . import ui
 
@@ -223,6 +222,9 @@ class PluginControlImpl(PluginControl):
         self._loop_ctl._w_menu.menu_remove(key)
 
     def ui_window_open(self, *args, **kwargs):
+        self._loop_ctl._wm.root.open_window(*args, **kwargs)
+
+    def ui_window_make(self, *args, **kwargs):
         return self._loop_ctl._wm.root.make_window(*args, **kwargs)
 
     def ui_window_close_top(self):
@@ -236,9 +238,11 @@ class PluginControlImpl(PluginControl):
 
     def ui_message_box(
         self, body, *,
+        buttons='OK',
+        callback=None,
+        autoclose=True,
         parent: Window | None = None,
-        buttons='OK', title='', title_attr=None,
-        callback=None, autoclose=True, attr_map=None,
+        title='',
     ):
         wd_p = self._loop_ctl._wm.root
         if parent and parent.is_open:
@@ -253,9 +257,5 @@ class PluginControlImpl(PluginControl):
                 autoclose=autoclose,
             ),
             title=title,
-            style=WindowStyleOverlayLineBox(
-                title_attr=title_attr,
-                attr_map=attr_map,
-            ),
             overlay=True,
         )

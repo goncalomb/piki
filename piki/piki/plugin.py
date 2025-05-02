@@ -85,18 +85,27 @@ class PluginControl():
         """
 
     def ui_window_open(
+        self, wd: _urwid_window.Window, *,
+        active=True,
+    ):
+        """
+        Open a top-level window.
+        """
+
+    def ui_window_make(
         self, w: urwid.Widget | typing.Callable[[_urwid_window.Window], urwid.Widget], *,
         title: str | None = None,
         style: _urwid_window.WindowStyle | bool = True,
         overlay: dict | bool = False,
+        active=True,
     ) -> _urwid_window.Window:
         """
-        Open window.
+        Make and open a new top-level window.
         """
 
     def ui_window_close_top(self):
         """
-        Close top window.
+        Close the top window.
         """
 
     def ui_window_close_all(self):
@@ -106,9 +115,11 @@ class PluginControl():
 
     def ui_message_box(
         self, body, *,
+        buttons='OK',
+        callback=None,
+        autoclose=True,
         parent: _urwid_window.Window | None = None,
-        buttons='OK', title='', title_attr=None,
-        callback=None, autoclose=True, attr_map=None,
+        title='',
     ) -> _urwid_window.Window:
         """
         Open message box.

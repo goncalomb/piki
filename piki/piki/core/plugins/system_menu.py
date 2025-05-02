@@ -106,7 +106,7 @@ class SystemMenuPlugin(Plugin):
 
     def on_ui_create(self):
         def show_palette():
-            self.ctl.ui_window_open(
+            self.ctl.ui_window_make(
                 self._win_show_palette,
                 title='PiKi Standard Style (ss) default palette and attributes',
                 overlay={

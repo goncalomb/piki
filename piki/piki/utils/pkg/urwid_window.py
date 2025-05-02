@@ -3,18 +3,41 @@ import typing
 import urwid
 
 
+class WindowEvent():
+    def __init__(self, wd: 'Window', cancelable: bool = False):
+        self._wd = wd
+        self._cancelable = cancelable
+        self._canceled = False
+
+    @property
+    def wd(self):
+        return self._wd
+
+    @property
+    def cancelable(self):
+        return self._cancelable
+
+    @property
+    def canceled(self):
+        return self._canceled
+
+    def cancel(self):
+        if self._cancelable:
+            self._canceled = True
+
+
 class WindowStyle():
-    def render(self, wd: 'Window'):
-        return wd._w
+    def render(self, wd: 'Window', w: urwid.Widget):
+        return w
 
 
-class WindowStyleOverlayLineBox(WindowStyle):
+class OverlayLineBoxWS(WindowStyle):
     def __init__(self, *, title_attr=None, attr_map=None):
         self._title_attr = title_attr
         self._attr_map = attr_map
 
-    def render(self, wd):
-        w = super().render(wd)
+    def render(self, wd, w):
+        w = super().render(wd, w)
         if not wd.is_overlay:
             return w
         w = urwid.LineBox(
@@ -26,6 +49,57 @@ class WindowStyleOverlayLineBox(WindowStyle):
         return urwid.AttrMap(
             w, attr_map=self._attr_map,
         ) if self._attr_map else w
+
+
+class TitleBarWS(WindowStyle):
+    def widgets_top_left(self, wd: 'Window'):
+        title = wd.title
+        if title:
+            yield urwid.Text(title)
+
+    def widgets_top_right(self, wd: 'Window'):
+        if wd.is_active_child:
+            w_close = urwid.Button('Close')
+            urwid.connect_signal(w_close, 'click', lambda w: wd.close())
+            yield w_close
+
+    def _pad_col(self, gen):
+        lst = list(gen)
+        return ('pack', urwid.Padding(
+            urwid.Columns(lst, 1),
+            left=1, right=1,
+        )) if lst else None
+
+    def render(self, wd, w):
+        w = super().render(wd, w)
+        syb = urwid.LineBox.Symbols.LIGHT
+        if wd.is_active_child:
+            syb = urwid.LineBox.Symbols.DOUBLE
+        w_top = urwid.Columns(filter(lambda w: w, [
+            (1, urwid.Text(syb.TOP_LEFT if wd.is_overlay else syb.HORIZONTAL)),
+            self._pad_col(self.widgets_top_left(wd)),
+            urwid.Divider(syb.HORIZONTAL),
+            self._pad_col(self.widgets_top_right(wd)),
+            (1, urwid.Text(syb.TOP_RIGHT if wd.is_overlay else syb.HORIZONTAL)),
+        ]))
+        if not wd.is_overlay:
+            return urwid.Pile([
+                ('pack', w_top),
+                w,
+            ], focus_item=1)
+        return urwid.Pile([
+            ('pack', w_top),
+            urwid.Columns([
+                (1, urwid.SolidFill(syb.VERTICAL)),
+                w,
+                (1, urwid.SolidFill(syb.VERTICAL)),
+            ], box_columns=[0, 2]),
+            ('pack', urwid.Columns([
+                (1, urwid.Text(syb.BOTTOM_LEFT)),
+                urwid.Divider(syb.HORIZONTAL),
+                (1, urwid.Text(syb.BOTTOM_RIGHT)),
+            ])),
+        ], focus_item=1)
 
 
 class Window():
@@ -104,42 +178,70 @@ class Window():
         # because root window has not parent and is always 'open'
         return bool(self._manager)
 
+    @property
+    def is_active_child(self):
+        if self._manager and not self._child:
+            wd = self._manager._active
+            if wd == self:
+                return True
+            while wd := wd._child:
+                if wd == self:
+                    return True
+        return False
+
+    @property
+    def is_active_parent(self):
+        if not self._manager:
+            return False
+        if self._manager._active == self:
+            return True
+        return any(map(lambda wd: wd.is_active_child, self.children))
+
     def set_active(self):
         if self._manager:
-            self._manager._active = self
-            self._manager._update()
+            ev = WindowEvent(self, True)
+            self.on_active(ev)
+            if not ev.canceled:
+                self._manager._active = self
+                self._manager._update()
 
-    def open_window(self, child: 'Window'):
+    def open_window(
+        self, wd: 'Window', *,
+        active=True,
+    ):
         if not self.is_open:
             raise RuntimeError("Cannot open window on a closed parent")
 
-        if child.is_open:
+        if wd.is_open:
             raise RuntimeError("Window already open")
-        assert (child._manager is None)
-        assert (child._parent is None)
-        assert (child._child is None)
-        assert (child._next is None)
+        assert (wd._manager is None)
+        assert (wd._parent is None)
+        assert (wd._child is None)
+        assert (wd._next is None)
 
         # add child to top
-        child._next = self._child
-        self._child = child
+        wd._next = self._child
+        self._child = wd
 
-        child._parent = self
-        child._manager = self._manager
-        child._manager._update()
+        wd._parent = self
+        wd._manager = self._manager
+        wd._manager._update()
 
-        # call open handler
-        if child._on_open(child):
-            child.set_active()
+        # call on_open handler
+        wd.on_open(WindowEvent(wd))
+
+        if active:
+            wd.set_active()
 
     def make_window(
         self, w: urwid.Widget | typing.Callable[['Window'], urwid.Widget], *,
         title: str | None = None,
         style: WindowStyle | bool = True,
         overlay: dict | bool = False,
+        active=True,
     ):
         child = Window(w, title=title, style=style, overlay=overlay)
-        self.open_window(child)
+        self.open_window(child, active=active)
         return child
 
     def _overlay_kwargs(self, default: dict):
@@ -149,8 +251,8 @@ class Window():
 
     def _render(self, style: WindowStyle | None):
         if self._style == True:
-            return style.render(self) if style else self._w
-        return self._style.render(self) if self._style else self._w
+            return style.render(self, self._w) if style else self._w
+        return self._style.render(self, self._w) if self._style else self._w
 
     def _destroy(self):
         assert (self._parent)
@@ -160,8 +262,11 @@ class Window():
         while self._child:
             self._child._destroy()
 
-        # call destroy handler
-        self._on_destroy(self)
+        # update active window
+        if self._manager._active == self:
+            # set root as active in case event is canceled
+            self._manager._active = self._manager._root
+            (self._next or self._parent).set_active()
 
         # remove from parent child list
         pc = self._parent._child
@@ -178,9 +283,13 @@ class Window():
         self._next = None
         self._parent = None
 
-        m = self._manager
-        self._manager = None
-        m._update()
+        try:
+            self._manager._update()
+        finally:
+            self._manager = None
+
+        # call on_destroy handler
+        self.on_destroy(WindowEvent(self))
 
     def close(self):
         if not self.is_open:
@@ -189,26 +298,62 @@ class Window():
             # cannot close root window
             return False
 
-        # call close handler
-        if not self._on_close(self):
+        # call on_close handler
+        ev = WindowEvent(self, True)
+        self.on_close(ev)
+        if ev.canceled:
             return False
 
         # not cancelled, destroy
         self._destroy()
         return True
 
-    def _on_open(self, wd: 'Window'):
-        return self._parent._on_open(wd) if self._parent else True
+    def on_open(self, ev: WindowEvent):
+        if self._parent:
+            self._parent.on_open(ev)
 
-    def _on_close(self, wd: 'Window'):
-        return self._parent._on_close(wd) if self._parent else True
+    def on_active(self, ev: WindowEvent):
+        if self._parent:
+            self._parent.on_active(ev)
 
-    def _on_destroy(self, wd: 'Window'):
-        return self._parent._on_destroy(wd) if self._parent else True
+    def on_close(self, ev: WindowEvent):
+        if self._parent:
+            self._parent.on_close(ev)
+
+    def on_destroy(self, ev: WindowEvent):
+        if self._parent:
+            self._parent.on_destroy(ev)
+
+
+class WindowManagerStyle():
+    def render(self, wm: 'WindowManager', w: urwid.Widget):
+        return w
+
+
+class TaskBarWMS(WindowManagerStyle):
+    def __init__(self, label_len=15):
+        self._label_len = label_len
+
+    def render(self, wm, w):
+        def btn(wd: Window):
+            l = wd.title
+            if self._label_len > 0 and len(l) > self._label_len:
+                l = l[:self._label_len - 1] + '\N{HORIZONTAL ELLIPSIS}'
+            w_close = urwid.Button('[%s]' % l if wd.is_active_parent else l)
+            urwid.connect_signal(w_close, 'click', lambda w: wd.set_active())
+            return 'pack', w_close
+        w = super().render(wm, w)
+        wd_list = list(wm.root.children)
+        if len(wd_list) <= 1:
+            return w
+        return urwid.Pile([
+            w, ('pack', urwid.Columns(map(btn, reversed(wd_list)), 1)),
+        ])
 
 
 class WindowManager():
-    _default_window_style = WindowStyleOverlayLineBox()
+    _default_style = TaskBarWMS()
+    _default_window_style = TitleBarWS()
     _default_window_overlay = {
         'align': 'center',
         'width': ('relative', 55),
@@ -218,9 +363,11 @@ class WindowManager():
 
     def __init__(
         self, *,
+        style: WindowManagerStyle | None = _default_style,
         window_style: WindowStyle | None = _default_window_style,
         window_overlay: dict = _default_window_overlay,
     ):
+        self._style = style
         self._window_style = window_style
         self._window_overlay = window_overlay
         self._root = Window(urwid.Overlay(
@@ -268,9 +415,8 @@ class WindowManager():
                 wd = wd._child
             return render_down(wd)
 
-        return render_up(self._active)
+        w = render_up(self._active)
+        return self._style.render(self, w) if self._style else w
 
     def _update(self):
-        if self._active and self._active._manager != self:
-            self._active = self._root
         self._widget.original_widget = self._render()
