@@ -1,4 +1,3 @@
-import asyncio
 import contextlib
 import subprocess
 
@@ -6,6 +5,73 @@ import urwid
 from piki.plugin import Plugin
 from piki.utils.pkg.urwid import (ss_16color_names, ss_attr_map_style,
                                   ss_make_boxbutton, ss_make_button)
+from piki.utils.pkg.urwid_window import Window
+
+
+class JournalLogWindow(Window):
+    def __init__(
+        self, *,
+        comm: str | None = None,
+        max_entries=75,
+    ):
+        self._comm = comm
+        self._max_entries = max_entries
+        title = 'Log Entries (journalctl) [%smax: %d]' % (
+            'comm: %s, ' % self._comm if self._comm else '',
+            self._max_entries,
+        )
+        super().__init__(
+            self._make_widget(),
+            title=title,
+            overlay={
+                'width': ('relative', 95),
+                'height': ('relative', 85),
+            },
+        )
+
+    def _journal_entries(self):
+        # XXX: consider running the process in the executor (thread)
+        #      to avoid blocking the ui
+        args = ['journalctl', '-n', str(self._max_entries)]
+        if self._comm:
+            args += ['_COMM=%s' % self._comm]
+        with subprocess.Popen(
+            args,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True
+        ) as p:
+            with p.stdout as fp:
+                while line := fp.readline():
+                    l = line.strip().split(']: ', 1)
+                    yield (l[0] + ']: ', l[1]) if len(l) > 1 else ('', l[0])
+            try:
+                status = p.wait(timeout=2)
+                if status:
+                    yield ('', 'Failed to get log entries!')
+                    yield ('', '(journalctl exit status %d)' % status)
+            except:
+                p.kill()
+                raise
+
+    def _make_widget(self):
+        w_close = urwid.Button('Close')
+        urwid.connect_signal(w_close, 'click', lambda w: self.close())
+        w_top = urwid.Button('Top')
+        urwid.connect_signal(w_top, 'click', lambda w: w_walker.set_focus(0))
+
+        def contents():
+            for l in self._journal_entries():
+                yield urwid.Text([('ss.cyan.fg', l[0]), l[1]])
+            yield urwid.Filler(urwid.Padding(urwid.Columns([
+                ('pack', w_close),
+                ('pack', w_top),
+            ], 1), 'center', 'clip'), top=1)
+
+        w_walker = urwid.SimpleFocusListWalker(list(contents()))
+        w_walker.set_focus(len(w_walker) - 1)
+        return urwid.Padding(urwid.ScrollBar(urwid.Padding(urwid.ListBox(w_walker), right=1)), left=1)
 
 
 class SystemMenuPlugin(Plugin):
@@ -72,14 +138,10 @@ class SystemMenuPlugin(Plugin):
                 }
             )
 
-    def _show_log(self):
-        async def task():
-            with self._run_safe_ctx():
-                # TODO: remove hardcoded vts
-                self._run(['chvt', '1'])
-                await asyncio.sleep(5)
-                self._run(['chvt', '7'])
-        self.ctl.loop_asyncio.create_task(task())
+    def _show_log(self, comm: str | None = None):
+        self.ctl.ui_window_open(
+            JournalLogWindow(comm=comm),
+        )
 
     def _win_show_palette(self, wd):
         prefix = 'ss'
@@ -152,7 +214,8 @@ class SystemMenuPlugin(Plugin):
         ])
         self.ctl.ui_menu_setup('piki.menu.system', title='System', buttons=[
             ('Show system information', self._show_system_information),
-            ('Show system log (5 sec.)', self._show_log),
+            ('Show system log', lambda: self._show_log()),
+            ('Show piki-core log', lambda: self._show_log('piki-core')),
             ('Show standard style palette', show_palette),
             ('Restart PiKi', self.ctl.loop_stop),
             ('Reboot', reboot),
