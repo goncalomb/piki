@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import subprocess
 
 import urwid
 
@@ -177,6 +178,30 @@ class PluginControlImpl(PluginControl):
         self._core_ctl = ctl
         self._loop_ctl = ctl._loop_ctl
         self._draw_screen_handle = None
+
+    def sys_exec(self, args, check=True, output=False):
+        return subprocess.run(
+            args,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE if output else subprocess.DEVNULL,
+            stderr=subprocess.PIPE if output else subprocess.DEVNULL,
+            check=check,
+            text=True,
+        )
+
+    def sys_reboot(self):
+        try:
+            self.sys_exec(['sudo', '-n', 'reboot'])
+            return True
+        except (FileNotFoundError, subprocess.SubprocessError):
+            return False
+
+    def sys_shutdown(self):
+        try:
+            self.sys_exec(['sudo', '-n', 'shutdown'])
+            return True
+        except (FileNotFoundError, subprocess.SubprocessError):
+            return False
 
     @property
     def loop_asyncio(self):

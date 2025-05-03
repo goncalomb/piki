@@ -1,4 +1,3 @@
-import contextlib
 import subprocess
 
 import urwid
@@ -75,46 +74,18 @@ class JournalLogWindow(Window):
 
 
 class SystemMenuPlugin(Plugin):
-    def _run(self, args):
-        return subprocess.run(
-            args,
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            check=True,
-        )
-
-    def _run_output(self, args):
-        return subprocess.check_output(
-            args,
-            stdin=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            text=True,
-        )
-
-    @contextlib.contextmanager
-    def _run_safe_ctx(self):
-        try:
-            yield
-        except (FileNotFoundError, subprocess.CalledProcessError) as e:
-            self.logger.exception("Subprocess exception", exc_info=e)
-
-    def _run_safe(self, args):
-        with self._run_safe_ctx():
-            return self._run(args)
-
-    def _run_message_box(self, args, message, btn_label, btn_ss_style):
+    def _message_box(self, cb, message, btn_label, btn_ss_style):
         self.ctl.ui_message_box(message, title='System', buttons=[
             'Cancel',
-            (btn_label, btn_ss_style, lambda *_: self._run_safe(args)),
+            (btn_label, btn_ss_style, lambda *_: cb()),
         ])
 
     def _show_system_information(self):
-        with self._run_safe_ctx():
-            def cmd_text(args):
-                text = self._run_output(args).strip().split('\n')
-                text = '\n'.join(map(lambda x: '  ' + x, text))
-                return urwid.Text(text)
+        def cmd_text(args):
+            text = self.ctl.sys_exec(args, output=True).stdout.strip()
+            text = '\n'.join(map(lambda x: '  ' + x, text.split('\n')))
+            return urwid.Text(text)
+        try:
             contents = [
                 urwid.Text(('ss.cyan.fg', 'uname -a')),
                 cmd_text(['uname', '-a']),
@@ -127,16 +98,26 @@ class SystemMenuPlugin(Plugin):
                 urwid.Text(('ss.cyan.fg', 'df -H')),
                 cmd_text(['df', '-H']),
             ]
-            self.ctl.ui_window_make(
-                urwid.Padding(urwid.ScrollBar(urwid.Padding(
-                    urwid.ListBox(contents), right=1,
-                )), left=1),
-                title='System Information',
-                overlay={
-                    'width': ('relative', 80),
-                    'height': ('relative', 75),
-                }
-            )
+        except (FileNotFoundError, subprocess.SubprocessError) as e:
+            self.logger.exception('Error executing command.', exc_info=e)
+            contents = [
+                urwid.Filler(
+                    urwid.Text('Error executing command.', align='center'),
+                    top=1, bottom=1,
+                ),
+                urwid.Text(repr(e), align='center'),
+                urwid.Text(str(e), align='center'),
+            ]
+        self.ctl.ui_window_make(
+            urwid.Padding(urwid.ScrollBar(urwid.Padding(
+                urwid.ListBox(contents), right=1,
+            )), left=1),
+            title='System Information',
+            overlay={
+                'width': ('relative', 80),
+                'height': ('relative', 75),
+            }
+        )
 
     def _show_log(self, comm: str | None = None):
         self.ctl.ui_window_open(
@@ -198,14 +179,14 @@ class SystemMenuPlugin(Plugin):
             )
 
         def reboot():
-            self._run_message_box(
-                ['sudo', '-n', 'reboot'],
+            self._message_box(
+                lambda: self.ctl.sys_reboot(),
                 'Reboot the system?', 'Reboot', 'ss.yellow'
             )
 
         def shutdown():
-            self._run_message_box(
-                ['sudo', '-n', 'shutdown'],
+            self._message_box(
+                lambda: self.ctl.sys_shutdown(),
                 'Shutdown the system?', 'Shutdown', 'ss.red'
             )
 

@@ -1,5 +1,6 @@
 import asyncio
 import dataclasses
+import subprocess
 import typing
 
 import urwid
@@ -19,6 +20,22 @@ class UIInternals():
 
 
 class PluginControl():
+    def sys_exec(self, args: list[str], check=True, output=False) -> subprocess.CompletedProcess:
+        """
+        Execute command, subprocess.run() wrap with standard streams
+        disconnected by default, and optional text output.
+        """
+
+    def sys_reboot(self) -> bool:
+        """
+        Reboot the system.
+        """
+
+    def sys_shutdown(self) -> bool:
+        """
+        Shutdown the system.
+        """
+
     @property
     def loop_asyncio(self) -> asyncio.AbstractEventLoop:
         """
