@@ -13,3 +13,20 @@
         regexp: ^dtoverlay=gpio-key,gpio={{ item.gpio_pin }}[,|$]
         line: "dtoverlay=gpio-key,gpio={{ item.gpio_pin }}{{ ',gpio_pull=' ~ item.gpio_pull if 'gpio_pull' in item else '' }}{{ ',active_low=' ~ item.active_low if 'active_low' in item else '' }}{{ ',keycode=' ~ item.keycode if 'keycode' in item else '' }}{{ ',label=' ~ item.label if 'label' in item else '' }} # piki"
       loop: "{{ piki_rpi_dto_gpio_key }}"
+
+- become: true
+  block:
+    - name: Install ir-keytable
+      ansible.builtin.apt:
+        name: ir-keytable
+        cache_valid_time: 3600
+
+    - name: Setup RC keymap (gpio_ir_recv)
+      ansible.builtin.lineinfile:
+        path: /etc/rc_maps.cfg
+        regexp: ^gpio_ir_recv
+        # XXX: the config file does not support spaces in the filename
+        #      even with quotes, don't use piki_dir with spaces,
+        #      this could probably be fixed with a symlink to a known location
+        line: "gpio_ir_recv rc-empty {{ piki_dir }}/rc-empty.toml # piki"
+  when: piki_rpi_dto_gpio_ir

@@ -90,6 +90,10 @@ class CoreController():
             Plugin,
             self._cb_plugin_internal_init,
         )
+        # TODO: add some way to sort plugins, 'order' field?
+        #       for now just sort by name (internal only)
+        self._plugins.sort(key=lambda p: p.name, reverse=True)
+
         if os.path.isdir(self.piki_plugins_dir):
             self._plugins += load_plugins(
                 self.piki_plugins_dir,

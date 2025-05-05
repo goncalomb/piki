@@ -75,6 +75,11 @@
         state: stopped
       when: piki_disable_getty_tty1
 
+    - name: Create piki-setup.service
+      ansible.builtin.template:
+        src: templates/piki-setup.service.j2
+        dest: /etc/systemd/system/piki-setup.service
+
     - name: Create piki-tty.service
       ansible.builtin.template:
         src: templates/piki-tty.service.j2
