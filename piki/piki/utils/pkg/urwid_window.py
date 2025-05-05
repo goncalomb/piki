@@ -1,3 +1,4 @@
+import enum
 import typing
 
 import urwid
@@ -24,6 +25,25 @@ class WindowEvent():
     def cancel(self):
         if self._cancelable:
             self._canceled = True
+
+
+class WindowFlags(enum.Flag):
+    BASIC = 0
+    """ basic: empty window with no style """
+    ESC_CLOSE = enum.auto()
+    """ escape close: close window with escape key """
+    WS_BORDER = enum.auto()
+    """ window style border: show window border """
+    WS_TITLE = enum.auto()
+    """ window style title: show window title """
+    WS_CLOSE = enum.auto()
+    """ window style close: show close button """
+    WMS_TASK = enum.auto()
+    """ window manager style task: show on window manager task bar """
+    DEFAULT = BASIC | ESC_CLOSE | WS_BORDER | WS_TITLE | WS_CLOSE | WMS_TASK
+    """ default window flags """
+    DEFAULT_NO_CLOSE = BASIC | WS_BORDER | WS_TITLE | WMS_TASK
+    """ default window flags (disable non-programmatic close) """
 
 
 class WindowStyle():
@@ -53,13 +73,14 @@ class OverlayLineBoxWS(WindowStyle):
 
 class TitleBarWS(WindowStyle):
     def widgets_top_left(self, wd: 'Window'):
-        title = wd.title
-        if title:
-            yield urwid.Text(title)
+        if WindowFlags.WS_TITLE in wd.flags:
+            if title := wd.title:
+                yield urwid.Text(title)
 
     def widgets_top_right(self, wd: 'Window'):
-        if wd.is_active_child:
-            w_close = urwid.Button('Close')
+        if WindowFlags.WS_CLOSE in wd.flags and wd.is_active_child:
+            label = 'Close [Esc]' if WindowFlags.ESC_CLOSE in wd.flags else 'Close'
+            w_close = urwid.Button(label)
             urwid.connect_signal(w_close, 'click', lambda w: wd.close())
             yield w_close
 
@@ -72,6 +93,8 @@ class TitleBarWS(WindowStyle):
 
     def render(self, wd, w):
         w = super().render(wd, w)
+        if WindowFlags.WS_BORDER not in wd.flags:
+            return w
         syb = urwid.LineBox.Symbols.LIGHT
         if wd.is_active_child:
             syb = urwid.LineBox.Symbols.DOUBLE
@@ -108,6 +131,7 @@ class Window():
     def __init__(
         self, w: urwid.Widget | typing.Callable[['Window'], urwid.Widget], *,
         title: str | None = None,
+        flags: WindowFlags = WindowFlags.DEFAULT,
         style: WindowStyle | bool = True,
         overlay: dict | bool = False,
     ):
@@ -119,6 +143,7 @@ class Window():
         self._next: Window | None = None
         self._w = w if isinstance(w, urwid.Widget) else w(self)
         self._title = title
+        self._flags = flags
         self._style = style
         self._overlay = overlay
 
@@ -153,14 +178,21 @@ class Window():
     def title(self):
         return 'WIN-%d' % self._id if self._title is None else self._title
 
+    @property
+    def flags(self):
+        return self._flags
+
     def modify(
         self, *,
         title: str | None = -1,
+        flags: WindowFlags = -1,
         style: WindowStyle | bool = -1,
         overlay: dict | bool = -1,
     ):
         if title != -1:
             self._title = title
+        if flags != -1:
+            self._flags = flags
         if style != -1:
             self._style = style
         if overlay != -1:
@@ -236,13 +268,14 @@ class Window():
     def make_window(
         self, w: urwid.Widget | typing.Callable[['Window'], urwid.Widget], *,
         title: str | None = None,
+        flags: WindowFlags = WindowFlags.DEFAULT,
         style: WindowStyle | bool = True,
         overlay: dict | bool = False,
         active=True,
     ):
-        child = Window(w, title=title, style=style, overlay=overlay)
-        self.open_window(child, active=active)
-        return child
+        wd = Window(w, title=title, flags=flags, style=style, overlay=overlay)
+        self.open_window(wd, active=active)
+        return wd
 
     def _overlay_kwargs(self, default: dict):
         if isinstance(self._overlay, dict):
@@ -343,7 +376,10 @@ class TaskBarWMS(WindowManagerStyle):
             urwid.connect_signal(w_close, 'click', lambda w: wd.set_active())
             return 'pack', w_close
         w = super().render(wm, w)
-        wd_list = list(wm.root.children)
+        wd_list = list(filter(
+            lambda wd: WindowFlags.WMS_TASK in wd.flags,
+            wm.root.children,
+        ))
         if len(wd_list) <= 1:
             return w
         return urwid.Pile([
@@ -352,6 +388,18 @@ class TaskBarWMS(WindowManagerStyle):
 
 
 class WindowManager():
+    class _WindowCloser(urwid.WidgetPlaceholder):
+        def __init__(self, wd: 'Window', w: urwid.Widget):
+            super().__init__(w)
+            self._wd = wd
+
+        def keypress(self, size, key):
+            key = super().keypress(size, key)
+            if key == 'esc':
+                self._wd.close()
+                return None
+            return key
+
     _default_style = TaskBarWMS()
     _default_window_style = TitleBarWS()
     _default_window_overlay = {
@@ -374,7 +422,7 @@ class WindowManager():
             urwid.Text('!'),
             urwid.SolidFill("\N{MEDIUM SHADE}"),
             'center', 'pack', 'middle', 'pack',
-        ), style=False)
+        ), flags=WindowFlags.BASIC, style=False)
         # root window has no parent but has manager
         self._root._manager = self
         self._active = self._root
@@ -393,13 +441,18 @@ class WindowManager():
         return self._widget
 
     def _render(self):
-        def render_down(wd: Window):
+        def render_wd(wd: Window, top=False):
+            if top and WindowFlags.ESC_CLOSE in wd.flags:
+                return __class__._WindowCloser(wd, wd._render(self._window_style))
+            return wd._render(self._window_style)
+
+        def render_down(wd: Window, top=False):
             if ol_kwargs := wd._overlay_kwargs(self._window_overlay):
                 # overlay window
                 assert (wd._parent)
                 return urwid.Overlay(
                     # top widget (self)
-                    wd._render(self._window_style),
+                    render_wd(wd, top),
                     # bottom widget (recursive render)
                     render_up(wd._next) if wd._next
                     else render_down(wd._parent),
@@ -407,13 +460,13 @@ class WindowManager():
                     **ol_kwargs,
                 )
             # full window (stop rendering)
-            return wd._render(self._window_style)
+            return render_wd(wd, top)
 
         def render_up(wd: Window):
             # find top window
             while wd._child:
                 wd = wd._child
-            return render_down(wd)
+            return render_down(wd, True)
 
         w = render_up(self._active)
         return self._style.render(self, w) if self._style else w

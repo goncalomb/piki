@@ -9,7 +9,7 @@ from .. import piki_version
 from ..plugin import Plugin, PluginControl, UIInternals
 from ..utils import venv_find_dir
 from ..utils.pkg.urwid import ConfigurableMenu, ss_make_default_palette
-from ..utils.pkg.urwid_window import Window, WindowManager
+from ..utils.pkg.urwid_window import Window, WindowManager, WindowFlags
 from ..utils.plugin import load_plugins
 from . import ui
 
@@ -44,7 +44,9 @@ class UILoopController():
         self._w_frame = urwid.Frame(self._w_menu)
         self._wm = WindowManager()
         self._wd_menu = self._wm.root.make_window(
-            self._w_frame, title='PiKi Menu',
+            self._w_frame,
+            title='PiKi Menu',
+            flags=WindowFlags.DEFAULT_NO_CLOSE,
         )
         if (self._main_loop):
             self._main_loop.widget = self._wm.widget
@@ -286,5 +288,6 @@ class PluginControlImpl(PluginControl):
                 autoclose=autoclose,
             ),
             title=title,
+            flags=WindowFlags.DEFAULT_NO_CLOSE,
             overlay=True,
         )

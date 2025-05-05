@@ -1,15 +1,15 @@
 import urwid
 from piki import piki_source_url, piki_version
 from piki.plugin import Plugin
-from piki.utils.pkg.urwid_window import WindowStyle
+from piki.utils.pkg.urwid_window import TitleBarWS, WindowFlags
 
 
-class MenuWindowStyle(WindowStyle):
+class MenuWindowStyle(TitleBarWS):
     def render(self, wd, w):
-        return urwid.Padding(
-            super().render(wd, w),
-            left=2, right=2,
+        w = urwid.Padding(
+            w, left=2, right=2,
         )
+        return super().render(wd, w)
 
 
 class DefaultStylePlugin(Plugin):
@@ -23,6 +23,7 @@ class DefaultStylePlugin(Plugin):
         ui = self.ctl.ui_internals
         # restyle menu window
         ui.wd_menu.modify(
+            flags=ui.wd_menu.flags & ~WindowFlags.WS_BORDER,
             style=MenuWindowStyle(),
             overlay={
                 'width': ('relative', 75),
@@ -31,7 +32,7 @@ class DefaultStylePlugin(Plugin):
         )
         # wrap body
         ui.w_frame.body = urwid.Padding(
-            ui.w_frame.body, 'center', ('relative', 40)
+            ui.w_frame.body, 'center', ('relative', 45),
         )
         # create header and footer pile
         ui.w_frame.header = urwid.Filler(urwid.Pile([
