@@ -2,7 +2,11 @@
 
 PiKi is a system for creating and configuring kiosks-like setups on a Raspberry Pi.
 
-It is meant to be installed using Ansible on a Raspberry Pi without GUI (lite), it includes a Python service with a text-based UI and plugin support to bootstrap simple applications and tasks.
+It is meant to be installed using Ansible on a Raspberry Pi without GUI (lite), it includes a Python service with a text-based UI and plugin system to bootstrap simple applications and tasks.
+
+![](docs/_static/images/piki-menu-system.png)
+
+![](docs/_static/images/piki-menu-reboot.png)
 
 ## Who is this for?
 
@@ -18,11 +22,11 @@ Everything is possible, PiKi is just a way to pre-configure the Raspberry Pi to 
 ## Features
 
 * ansible: configuration of simple systemd services
-* piki-core: built-in text-based user interface (using [urwid])
-* piki-core: [asyncio] event loop setup
-* piki-core: plugin system to run simple python applications and tasks
 * ansible: kernel-level GPIO/RC configuration
-* piki-core: ~~ir-receiver configuration tool~~ (IN PROGRESS)
+* piki-core: built-in text-based user interface (using [urwid]), with a custom window manager
+* piki-core: [asyncio] event loop setup
+* piki-core: plugin system to run your own code directly on piki-core
+* piki-core: IR-receiver configuration tool
 * piki-core: ~~input event system to handle keyboard events~~ (IN PROGRESS)
 * ansible: ~~GUI support, e.g. running a browser kiosk~~ (PLANNED, right now you can launch X/Wayland yourself)
 
@@ -68,8 +72,7 @@ This project is a work-in-progress, more documentation will be available later. 
 ```yaml
 roles:
   - name: goncalomb.piki
-    src: git@github.com:goncalomb/piki.git
-    scm: git
+    src: git+https://github.com/goncalomb/piki.git
 ```
 
 `inventory.yaml`
@@ -100,17 +103,22 @@ all:
 `my-plugin.py`
 
 ```python
-import piki.plugin
 import urwid
+from piki.plugin import Plugin
 
 
-class MyPlugin(piki.plugin.Plugin):
+class MyPlugin(Plugin):
     def on_ui_create(self):
         def cb():
-            ui = self.ctl.ui_internals
-            ui.w_frame.footer = urwid.Filler(
-                urwid.Text('CLICKED CLICKED CLICKED CLICKED'),
-                top=5, bottom=5,
+            self.ctl.ui_window_make(
+                urwid.Filler(
+                    urwid.Text('Hello world!', align='center')
+                ),
+                title='My Window',
+                overlay={
+                    'width': ('relative', 50),
+                    'height': ('relative', 50),
+                }
             )
         self.ctl.ui_menu_setup_root(buttons=[
             ('CLICK ME', cb),
