@@ -132,5 +132,9 @@ ansible-galaxy install -fr requirements.yaml
 ansible-playbook -i inventory.yaml playbook.yaml
 ```
 
+## License
+
+PiKi is released under the terms of the MIT License. See [LICENSE.txt](LICENSE.txt) for details.
+
 [urwid]: https://urwid.org/
 [asyncio]: https://docs.python.org/3/library/asyncio.html
