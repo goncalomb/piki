@@ -1,18 +1,18 @@
 [Unit]
-Description=PiKi TTY
+Description=PiKi Core
 PartOf=piki.target
 
 [Service]
-ExecStartPre="{{ piki_dir }}/bin/piki-ttyctl" "{{ piki_tty_device }}" "{{ piki_tty_font }}"
+ExecStartPre="{{ piki_dir }}/bin/piki-ttyctl" "{{ piki_core_tty }}" "{{ piki_core_font }}"
 ExecStopPost="{{ piki_dir }}/bin/piki-ttyctl" /dev/tty1
-ExecStart={{ piki_tty_exec }}
+ExecStart="{{ piki_dir }}/bin/piki-core" run
 Restart=always
 User=pi
 Group=pi
 StandardInput=tty
 StandardOutput=tty
 StandardError=journal+console
-TTYPath={{ piki_tty_device }}
+TTYPath={{ piki_core_tty }}
 TTYReset=yes
 TTYVHangup=yes
 TTYVTDisallocate=yes

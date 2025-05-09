@@ -79,4 +79,4 @@
       ansible.builtin.template:
         src: templates/{{ item }}.j2
         dest: /etc/systemd/system/{{ item }}
-      loop: [piki.target, piki-setup.service, piki-tty.service]
+      loop: [piki.target, piki-setup.service, piki-core.service]

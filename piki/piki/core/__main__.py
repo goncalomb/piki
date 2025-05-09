@@ -16,8 +16,8 @@ def exec_check_call(cmd, stdin=subprocess.DEVNULL):
     subprocess.check_call(cmd, stdin=stdin)
 
 
-def restart_piki_tty():
-    exec_check_call(['sudo', 'systemctl', 'restart', 'piki-tty.service'])
+def restart_piki_core():
+    exec_check_call(['sudo', 'systemctl', 'restart', 'piki-core.service'])
 
 
 @click.group(help=__doc__)
@@ -39,7 +39,7 @@ def debug():
 @debug.command(name='restart', help="Restart piki-core.")
 def _():
     try:
-        restart_piki_tty()
+        restart_piki_core()
     except Exception as e:
         print(e, file=sys.stderr)
 
@@ -74,7 +74,7 @@ def _(name, restart):
         with open(path, 'wb') as fp:
             shutil.copyfileobj(sys.stdin.buffer, fp)
         if restart:
-            restart_piki_tty()
+            restart_piki_core()
     except Exception as e:
         print(e, file=sys.stderr)
 
