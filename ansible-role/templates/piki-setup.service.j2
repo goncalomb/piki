@@ -1,6 +1,6 @@
 [Unit]
 Description=PiKi Setup
-After=network-online.target
+PartOf=piki.target
 
 [Service]
 # allow any user to setup rc protocols
@@ -8,4 +8,4 @@ ExecStart=-bash -c "chmod o+w /sys/class/rc/*/protocols"
 RemainAfterExit=yes
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=piki.target

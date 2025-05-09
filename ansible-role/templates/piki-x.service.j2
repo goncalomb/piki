@@ -1,6 +1,6 @@
 [Unit]
 Description={{ item.description }}
-After=network-online.target
+PartOf=piki.target
 
 [Service]
 {% if 'environment' in item %}
@@ -13,4 +13,4 @@ StandardOutput=journal+console
 StandardError=journal+console
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=piki.target

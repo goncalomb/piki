@@ -1,6 +1,6 @@
 [Unit]
 Description=PiKi TTY
-After=network-online.target
+PartOf=piki.target
 
 [Service]
 ExecStartPre="{{ piki_dir }}/bin/piki-ttyctl" "{{ piki_tty_device }}" "{{ piki_tty_font }}"
@@ -18,4 +18,4 @@ TTYVHangup=yes
 TTYVTDisallocate=yes
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=piki.target
