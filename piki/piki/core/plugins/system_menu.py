@@ -184,10 +184,10 @@ class SystemMenuPlugin(Plugin):
                 'Reboot the system?', 'Reboot', 'ss.yellow'
             )
 
-        def shutdown():
+        def poweroff():
             self._message_box(
-                lambda: self.ctl.sys_shutdown(),
-                'Shutdown the system?', 'Shutdown', 'ss.red'
+                lambda: self.ctl.sys_poweroff(),
+                'Power off the system?', 'Power off', 'ss.red'
             )
 
         self.ctl.ui_menu_setup_root(buttons=[
@@ -200,5 +200,5 @@ class SystemMenuPlugin(Plugin):
             ('Show standard style palette', show_palette),
             ('Restart PiKi', self.ctl.loop_stop),
             ('Reboot', reboot),
-            ('Shutdown', shutdown),
+            ('Power off', poweroff),
         ])

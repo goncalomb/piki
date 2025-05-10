@@ -202,9 +202,9 @@ class PluginControlImpl(PluginControl):
         except (FileNotFoundError, subprocess.SubprocessError):
             return False
 
-    def sys_shutdown(self):
+    def sys_poweroff(self):
         try:
-            self.sys_exec(['sudo', '-n', 'shutdown'])
+            self.sys_exec(['sudo', '-n', 'poweroff'])
             return True
         except (FileNotFoundError, subprocess.SubprocessError):
             return False

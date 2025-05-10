@@ -31,9 +31,9 @@ class PluginControl():
         Reboot the system.
         """
 
-    def sys_shutdown(self) -> bool:
+    def sys_poweroff(self) -> bool:
         """
-        Shutdown the system.
+        Power off the system.
         """
 
     @property
