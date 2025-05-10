@@ -3,6 +3,7 @@ Description=PiKi Setup
 PartOf=piki.target
 
 [Service]
+Type=oneshot
 # allow any user to setup rc protocols
 ExecStart=-bash -c "chmod o+w /sys/class/rc/*/protocols"
 RemainAfterExit=yes

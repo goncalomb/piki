@@ -8,7 +8,7 @@ PartOf=piki.target
 Environment={{ environment }}
 {% endfor %}
 {% endif %}
-ExecStart={{ item.exec }}
+ExecStart={{ item.exec_start }}
 StandardOutput=journal+console
 StandardError=journal+console
 

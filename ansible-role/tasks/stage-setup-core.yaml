@@ -75,7 +75,7 @@
         state: stopped
       when: piki_disable_getty_tty1
 
-    - name: Setup systemd services
+    - name: Setup core services
       ansible.builtin.template:
         src: templates/{{ item }}.j2
         dest: /etc/systemd/system/{{ item }}

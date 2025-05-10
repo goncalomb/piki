@@ -1,7 +1,23 @@
 - become: true
-  name: Enable/Restart piki.target
-  ansible.builtin.systemd_service:
-    name: piki.target
-    daemon_reload: true
-    enabled: true
-    state: restarted
+  block:
+    - name: Reload systemd daemon
+      ansible.builtin.systemd_service:
+        daemon_reload: true
+
+    - name: Enable core services
+      ansible.builtin.systemd_service:
+        name: "{{ item }}"
+        enabled: true
+      loop: [piki.target, piki-setup.service, piki-core.service]
+
+    - name: Enable user services ({{ piki_user_services | length }})
+      ansible.builtin.systemd_service:
+        name: "{{ piki_user_services_prefix }}{{ item.name }}"
+        enabled: true
+      loop: "{{ piki_user_services }}"
+
+    - name: Restart piki.target
+      ansible.builtin.systemd_service:
+        name: piki.target
+        enabled: true
+        state: restarted
