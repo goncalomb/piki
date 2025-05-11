@@ -2,6 +2,7 @@ import asyncio
 import contextlib
 import typing
 
+import evdev
 import toml
 import urwid
 
@@ -184,20 +185,83 @@ class _KeyWidget(urwid.Columns):
 
 class _KeyListWidget(urwid.ScrollBar):
     def __init__(self, key_scodes, *, cb_add, cb_clear):
-        self._key_widgets = {
-            key: _KeyWidget(
-                key, scodes,
-                cb_add=cb_add, cb_clear=cb_clear,
-            ) for key, scodes in key_scodes.items()
-        }
-        super().__init__(urwid.ListBox(self._key_widgets.values()))
+        self._cb_add = cb_add
+        self._cb_clear = cb_clear
+        self._key_widgets = {}
+        self._w_walker = urwid.SimpleFocusListWalker([])
+        self.set_key_scodes(key_scodes)
+        super().__init__(urwid.ListBox(self._w_walker))
 
-    def set_key_scodes(self, key_scodes):
+    def set_key_scodes(self, key_scodes, new_set_focus=False):
+        key_scodes = dict(key_scodes)
+        # update
         for key, w in self._key_widgets.items():
-            w.set_scodes(key_scodes[key] if key in key_scodes else None)
+            w.set_scodes(key_scodes.pop(key, None))
+        # add new
+        if key_scodes:
+            for key, scodes in key_scodes.items():
+                self._key_widgets[key] = _KeyWidget(
+                    key, scodes,
+                    cb_add=self._cb_add, cb_clear=self._cb_clear,
+                )
+                self._w_walker.append(self._key_widgets[key])
+            if new_set_focus:
+                self._w_walker.set_focus(len(self._w_walker) - 1)
 
-    def set_from_keymap(self, keymap: RCKeymap):
-        self.set_key_scodes(keymap.all_scancodes_by_key())
+    def set_from_keymap(self, keymap: RCKeymap, new_set_focus=False):
+        self.set_key_scodes(keymap.all_scancodes_by_key(), new_set_focus)
+
+
+class _KeyAddWidget(urwid.Pile):
+    _all_keys = {
+        k: k[4:] for v in evdev.ecodes.keys.values() for k in (v if isinstance(v, tuple) else (v, ))
+    }
+
+    def __init__(self, *, cb_key_add: typing.Callable):
+        self._cb_key_add = cb_key_add
+        self.w_info = urwid.Text('')
+        self.w_grid = None
+        self.w_edit = urwid.Edit('Search for a key to add: ')
+        urwid.connect_signal(self.w_edit, 'change', self._on_change)
+        super().__init__([
+            ('pack', urwid.Columns([
+                self.w_edit,
+                ('pack', self.w_info),
+            ], 1)),
+        ])
+
+    def clear(self):
+        self.w_edit.set_edit_text('')
+
+    def _on_change(self, w, text):
+        keys = self._search_keys(text) if text else []
+        self.w_info.set_text(
+            ('ss.cyan.fg', '(select a key to add)') if keys else '',
+        )
+
+        if not keys:
+            self.contents = [self.contents[0]]
+            self.w_grid = None
+            return
+
+        def btn(key):
+            w = urwid.Button(key)
+            urwid.connect_signal(w, 'click', lambda w: self._cb_key_add(key))
+            return w
+
+        if not self.w_grid:
+            self.w_grid = urwid.GridFlow([], 0, 1, 0, align='center')
+            self.contents.append((self.w_grid, ('pack', None)))
+        self.w_grid.contents = [(btn(k), ('given', len(k) + 4)) for k in keys]
+
+    def _search_keys(self, text: str, max=20):
+        text = text.upper()
+        res = []
+        for k, n in __class__._all_keys.items():
+            if text in n:
+                res.append(k)
+        res.sort(key=len)
+        return res[:max]
 
 
 class RCKeymapConfigurator():
@@ -208,6 +272,8 @@ class RCKeymapConfigurator():
         'KEY_DOWN',
         'KEY_ENTER',
         'KEY_ESC',
+        'KEY_POWER',
+        'KEY_RESTART',
     ]
 
     def __init__(
@@ -234,6 +300,23 @@ class RCKeymapConfigurator():
             ) if self._dev_lirc else ('ss.yellow.fg', 'RC/IR device not available, cannot add new keys!')),
             bottom=1,
         )
+        self._key_add_widget = _KeyAddWidget(
+            cb_key_add=lambda key: self._monitor_start(key),
+        )
+        self._key_list_widget = _KeyListWidget(
+            {k: [] for k in self._default_keys},
+            cb_add=(
+                lambda key: self._monitor_start(key)
+            ) if self._dev_lirc else None,
+            cb_clear=lambda key: self._update_key(key, None),
+        )
+        if self._dev_lirc:
+            self._w.body = urwid.Pile([
+                ('pack', urwid.Filler(self._key_add_widget, bottom=1)),
+                self._key_list_widget,
+            ])
+        else:
+            self._w.body = self._key_list_widget
         self.update()
 
     @property
@@ -336,31 +419,16 @@ class RCKeymapConfigurator():
             self._keymap.set_scancode(scode[0], scode[1], key)
         else:
             self._keymap.clear_key_scancodes(key)
-        self._key_list_widget.set_from_keymap(self.keymap)
+        self._key_list_widget.set_from_keymap(self.keymap, True)
 
     def update(self):
-        key_scodes = self.keymap.all_scancodes_by_key()
-        key_scodes_default = {}
-        for k in self._default_keys:
-            if k in key_scodes:
-                key_scodes_default[k] = key_scodes[k]
-                del key_scodes[k]
-            else:
-                key_scodes_default[k] = []
-        key_scodes_all = {**key_scodes_default, **key_scodes}
-
-        self._key_list_widget = _KeyListWidget(
-            key_scodes_all,
-            cb_add=(
-                lambda key: self._monitor_start(key)
-            ) if self._dev_lirc else None,
-            cb_clear=lambda key: self._update_key(key, None),
-        )
-        self._w.body = self._key_list_widget
+        self._key_add_widget.clear()
+        self._key_list_widget.set_from_keymap(self.keymap)
 
     def clear(self):
         self._changed = True
         self._keymap.clear_all_scancodes()
+        self._key_add_widget.clear()
         self._key_list_widget.set_from_keymap(self.keymap)
 
     def close(self):
