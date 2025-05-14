@@ -3,13 +3,16 @@ import logging
 import os
 import subprocess
 
+import evdev
 import urwid
 
 from .. import piki_version
-from ..plugin import Plugin, PluginControl, UIInternals
+from ..plugin import Plugin, PluginControl, PluginEvents, UIInternals
 from ..utils import venv_find_dir
+from ..utils.linux.input import input_find_devices
+from ..utils.pkg.evdev import evdev_open_device
 from ..utils.pkg.urwid import ConfigurableMenu, ss_make_default_palette
-from ..utils.pkg.urwid_window import Window, WindowManager, WindowFlags
+from ..utils.pkg.urwid_window import Window, WindowFlags, WindowManager
 from ..utils.plugin import load_plugins
 from . import ui
 
@@ -52,16 +55,60 @@ class UILoopController():
             self._main_loop.widget = self._wm.widget
             self._main_loop.screen.register_palette(self._default_palette())
 
-    def _run(self, main):
+    def _run(self, main, unhandled_input):
         self._event_loop = urwid.AsyncioEventLoop()
         self._event_loop.alarm(0, main)
 
         self._main_loop = urwid.MainLoop(
             self._wm.widget, self._default_palette(),
             event_loop=self._event_loop,
+            unhandled_input=unhandled_input,
         )
 
         self._main_loop.run()
+
+
+class InputController():
+    def start(self, input_key):
+        def get_relevant_devices():
+            # find all input devices that declare at least one KEY capability
+            for dev in input_find_devices():
+                if dev.uevent_var('KEY', '0') != '0' and dev.event0:
+                    yield dev.event0
+
+        # TODO: more error handling
+        # TODO: properly detect when devices are connected/disconnected,
+        #       detecting new devices requires a NETLINK_KOBJECT_UEVENT socket
+        #       this is how libs like libinput/libudev work, we could just
+        #       use libinput, but i think it's a good exercise to explore the
+        #       netlink kernel sockets and expand our piki.utils.linux package
+        # TODO: we could also rewrite the evdev package in pure python...
+
+        async def read_device(dev):
+            try:
+                event_io = evdev_open_device(dev)
+                logger.info("Reading input events from '%s'" % dev.dev_path)
+                while evs := await event_io.async_read():
+                    for ev in evs:
+                        if ev.type == evdev.ecodes.EV_KEY and ev.value in [0, 1]:
+                            names = evdev.ecodes.keys[ev.code] if ev.code in evdev.ecodes.keys else '0x%02x' % ev.code
+                            input_key(PluginEvents.InputKeyEvent(
+                                ev.code,
+                                (names,) if isinstance(names, str) else names,
+                                'down' if ev.value else 'up',
+                            ))
+            except OSError as e:
+                logger.warning("Error reading device '%s'" % dev.dev_path)
+                logger.warning(e)
+
+        loop = asyncio.get_running_loop()
+        for dev in get_relevant_devices():
+            loop.create_task(read_device(dev))
+
+    def stop(self):
+        # TODO: proper cleanup, just let the tasks be cancelled by
+        #       the loop shutdown for now
+        pass
 
 
 class CoreController():
@@ -75,9 +122,11 @@ class CoreController():
     def __init__(self):
         self._plugins = []  # TODO: type hinting on 'utils.plugin'
         self._loop_ctl = UILoopController()
+        self._event_ctl = InputController()
 
     def _cb_plugin_init(self, p):
         p.ctl = PluginControlImpl(self)
+        p.evt = PluginEventsImpl()
 
     def _cb_plugin_internal_init(self, p):
         self._cb_plugin_init(p)
@@ -135,8 +184,20 @@ class CoreController():
             p.on_ui_create()
 
     def _main(self):
+        self._event_ctl.start(self._input_key)
         for p in self._plugins:
             p.on_main()
+
+    def _unhandled_input(self, data):
+        for p in self._plugins:
+            p.evt.input_urwid.fire(PluginEvents.InputUrwidEvent(data))
+        return True
+
+    def _input_key(self, ev):
+        def cb():
+            for p in self._plugins:
+                p.evt.input_key.fire(ev)
+        self._loop_ctl._event_loop.alarm(0, cb)
 
     def run(self):
         logger.info("Starting PiKi v%s" % piki_version)
@@ -147,7 +208,7 @@ class CoreController():
         self._load_plugins()
 
         try:
-            self._loop_ctl._run(self._main)
+            self._loop_ctl._run(self._main, self._unhandled_input)
         except KeyboardInterrupt:
             pass
         except Exception as e:
@@ -291,3 +352,28 @@ class PluginControlImpl(PluginControl):
             flags=WindowFlags.DEFAULT_NO_CLOSE,
             overlay=True,
         )
+
+
+class PluginEventsImpl(PluginEvents):
+    class Handlers(PluginEvents.Handlers):
+        def __init__(self):
+            self._handlers = set()
+
+        def on(self, cb):
+            self._handlers.add(cb)
+
+        def off(self, cb):
+            # copy to avoid changing the set while iterating
+            self._handlers = set(self._handlers)
+            self._handlers.discard(cb)
+
+        def fire(self, ev):
+            for h in self._handlers:
+                h(ev)
+
+    input_urwid: Handlers
+    input_key: Handlers
+
+    def __init__(self):
+        self.input_urwid = self.Handlers()
+        self.input_key = self.Handlers()

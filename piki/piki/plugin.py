@@ -143,6 +143,46 @@ class PluginControl():
         """
 
 
+# XXX: update this to new syntax (python 3.12)
+#      https://docs.python.org/3/whatsnew/3.12.html#pep-695-type-parameter-syntax
+_ev_T = typing.TypeVar('T')
+
+
+class PluginEvents():
+    @dataclasses.dataclass(frozen=True)
+    class InputUrwidEvent():
+        data: typing.Any
+
+    @dataclasses.dataclass(frozen=True)
+    class InputKeyEvent():
+        code: int
+        names: tuple[str]
+        state: typing.Literal['down', 'up']
+
+    class Handlers(typing.Generic[_ev_T]):
+        def on(self, cb: typing.Callable[[_ev_T], typing.Any]):
+            """ Add event handler callback. """
+
+        def off(self, cb: typing.Callable[[_ev_T], typing.Any]):
+            """ Remove event handler callback. """
+
+    input_urwid: Handlers[InputUrwidEvent]
+    """
+    Input events from urwid's 'unhandled_input'.
+
+    https://urwid.org/reference/main_loop.html#urwid.MainLoop
+    """
+
+    input_key: Handlers[InputKeyEvent]
+    """
+    Key events from '/dev/input/event*' devices (keyboard, gpio, rc, etc.).
+
+    Limitation: Currently, the event devices are only opened when piki-core
+    starts. New devices (e.g. connecting a new keyboard) will not be detected
+    until piki-core is restarted.
+    """
+
+
 class Plugin(_plugin.Plugin):
     """
     Main lifecycle:
@@ -166,6 +206,7 @@ class Plugin(_plugin.Plugin):
 
     internal = False
     ctl: PluginControl
+    evt: PluginEvents
 
     def on_load(self):
         """
