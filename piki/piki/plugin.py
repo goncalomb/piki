@@ -113,6 +113,7 @@ class PluginControl():
     def ui_window_make(
         self, w: urwid.Widget | typing.Callable[[_urwid_window.Window], urwid.Widget], *,
         title: str | None = None,
+        flags: _urwid_window.WindowFlags = _urwid_window.WindowFlags.DEFAULT,
         style: _urwid_window.WindowStyle | bool = True,
         overlay: dict | bool = False,
         active=True,
