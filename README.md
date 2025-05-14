@@ -24,10 +24,10 @@ Everything is possible, PiKi is just a way to pre-configure the Raspberry Pi to 
 * ansible: configuration of simple systemd services
 * ansible: kernel-level GPIO/RC configuration
 * piki-core: built-in text-based user interface (using [urwid]), with a custom window manager
-* piki-core: [asyncio] event loop setup
+* piki-core: [asyncio] event loop
 * piki-core: plugin system to run your own code directly on piki-core
 * piki-core: IR-receiver configuration tool
-* piki-core: ~~input event system to handle keyboard events~~ (IN PROGRESS)
+* piki-core: event system to receive input events (keyboard, gpio, rc, etc.)
 * ansible: ~~GUI support, e.g. running a browser kiosk~~ (PLANNED, right now you can launch X/Wayland yourself)
 
 ## How does it work?
