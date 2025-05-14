@@ -32,7 +32,7 @@ class UILoopController():
 
     @property
     def internals(self):
-        return UIInternals(self._main_loop, self._wm, self._wd_menu, self._w_frame, self._w_menu)
+        return UIInternals(self._main_loop, self._w_root, self._wm, self._wd_menu, self._w_frame, self._w_menu)
 
     def _default_palette(self):
         for p in ss_make_default_palette():
@@ -51,8 +51,9 @@ class UILoopController():
             title='PiKi Menu',
             flags=WindowFlags.DEFAULT_NO_CLOSE,
         )
+        self._w_root = urwid.WidgetPlaceholder(self._wm.widget)
         if (self._main_loop):
-            self._main_loop.widget = self._wm.widget
+            self._main_loop.widget = self._w_root
             self._main_loop.screen.register_palette(self._default_palette())
 
     def _run(self, main, unhandled_input):
@@ -60,7 +61,7 @@ class UILoopController():
         self._event_loop.alarm(0, main)
 
         self._main_loop = urwid.MainLoop(
-            self._wm.widget, self._default_palette(),
+            self._w_root, self._default_palette(),
             event_loop=self._event_loop,
             unhandled_input=unhandled_input,
         )

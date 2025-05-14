@@ -13,6 +13,7 @@ from .utils.pkg import urwid_window as _urwid_window
 @dataclasses.dataclass(frozen=True)
 class UIInternals():
     main_loop: urwid.MainLoop | None
+    w_root: urwid.WidgetPlaceholder
     wm: _urwid_window.WindowManager
     wd_menu: _urwid_window.Window
     w_frame: urwid.Frame
